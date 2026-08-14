@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2e7d32"/><stop offset="1" stop-color="#1b5e20"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#66bb6a"/><stop offset="1" stop-color="#388e3c"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <g fill="url(#blade)">
+    <rect x="90" y="250" width="26" height="140" rx="8"/>
+    <rect x="150" y="220" width="26" height="170" rx="8"/>
+    <rect x="210" y="260" width="26" height="130" rx="8"/>
+    <rect x="270" y="235" width="26" height="155" rx="8"/>
+    <rect x="330" y="250" width="26" height="140" rx="8"/>
+    <rect x="390" y="225" width="26" height="165" rx="8"/>
+    <rect x="450" y="255" width="26" height="135" rx="8"/>
+    <rect x="510" y="230" width="26" height="160" rx="8"/>
+    <rect x="570" y="250" width="26" height="140" rx="8"/>
+    <rect x="630" y="235" width="26" height="155" rx="8"/>
+    <rect x="690" y="255" width="26" height="135" rx="8"/>
+  </g>
+  <rect x="80" y="390" width="660" height="12" rx="6" fill="#1b5e20"/>
+  <text x="400" y="520" font-family="Arial, sans-serif" font-size="34" font-weight="bold" fill="#ffffff" text-anchor="middle">Gazon Filliér</text>
+  <text x="400" y="560" font-family="Arial, sans-serif" font-size="20" fill="#a5d6a7" text-anchor="middle">Gazon synthétique haute densité</text>
+</svg>
