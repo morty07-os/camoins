@@ -1,0 +1,33 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# JavaScript / NestJS
+node_modules/
+dist/
+coverage/
+npm-debug.log*
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub/
+build/
+flutter_*.log
+
+# Native build artifacts
+android/.gradle/
+android/local.properties
+ios/Pods/
+ios/.symlinks/
+macos/Pods/
+
+# Tooling
+.idea/
+.vscode/
+*.iml
+
+# Generated storage and uploads
+uploads/
+storage-data/
