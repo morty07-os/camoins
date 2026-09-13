@@ -1,0 +1,16 @@
+{
+  "name": "backhaul-app",
+  "version": "1.0.0",
+  "description": "Backhaul truck marketplace application",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "npm --prefix backend start",
+    "frontend": "cd frontend && flutter run -d chrome --web-port 3000"
+  },
+  "keywords": ["backhaul", "logistics", "flutter", "nodejs"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

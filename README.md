@@ -1,31 +1,173 @@
-# Backhaul Logistics
+# Backhaul App - Step 1: Login
 
-A mobile marketplace for matching unused truck capacity—especially return trips—with compatible freight shipments along or near the same route.
+A truck backhaul marketplace application connecting drivers with customers for return-trip transport.
 
-## Technology direction
+## Technology Stack
 
-- Mobile: Flutter and Dart
-- Backend: NestJS and TypeScript
-- Data: PostgreSQL with PostGIS
-- Supporting services: Redis, Firebase Cloud Messaging, S3-compatible storage
+**Frontend:**
+- Flutter Web
+- Dart
+- Material 3
+- HTTP package
 
-## Repository layout
+**Backend:**
+- Node.js
+- Express
+- CORS
+- dotenv
 
-```text
-mobile/       Flutter application (added in the next implementation step)
-backend/      NestJS API (added in the next implementation step)
-database/     Database migrations and development seed data
-docs/         Architecture and product-facing technical decisions
-docker/       Local infrastructure configuration
-.github/      CI/CD workflows
+## Project Structure
+
+```
+backhaul-app/
+├── frontend/          # Flutter Web application
+│   ├── lib/
+│   │   ├── main.dart
+│   │   └── login_page.dart
+│   └── pubspec.yaml
+├── backend/           # Node.js Express API
+│   ├── server.js
+│   ├── package.json
+│   └── .env
+├── package.json       # Root package with run scripts
+└── README.md
 ```
 
-## First product milestone
+## Prerequisites
 
-```text
-Driver registers → creates a truck → publishes a trip
-Customer registers → creates a shipment → sees a matching trip
-Customer requests booking → driver accepts → booking is ACCEPTED
+### Flutter Setup
+
+1. Download Flutter SDK from: https://docs.flutter.dev/get-started/install/windows
+2. Extract to `C:\src\flutter`
+3. Add `C:\src\flutter\bin` to your system PATH
+4. Restart terminal
+5. Run: `flutter doctor`
+6. Enable web: `flutter config --enable-web`
+
+### Node.js
+
+Ensure Node.js (v16+) and npm are installed.
+
+## Installation
+
+```bash
+# Install all dependencies
+npm install
+
+# Install backend dependencies
+cd backend
+npm install
+cd ..
+
+# Install Flutter dependencies
+cd frontend
+flutter pub get
+cd ..
 ```
 
-See [the master specification](backhaul_logistics_codex_spec.md) and the documents in `docs/` for the current engineering baseline.
+## Running the Application
+
+### Option 1: Run both concurrently (recommended)
+
+```bash
+npm run dev
+```
+
+This starts:
+- Backend on http://localhost:5000
+- Frontend on http://localhost:3000
+
+### Option 2: Run separately
+
+**Terminal 1 - Backend:**
+```bash
+cd backend
+npm start
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd frontend
+flutter run -d chrome --web-port 3000
+```
+
+## Test Credentials
+
+**Email:** test@example.com  
+**Password:** password123
+
+## API Endpoints
+
+### Health Check
+```
+GET http://localhost:5000/api/health
+```
+
+Response:
+```json
+{
+  "status": "ok"
+}
+```
+
+### Login
+```
+POST http://localhost:5000/api/login
+Content-Type: application/json
+```
+
+Request:
+```json
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+```
+
+Success Response (200):
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "token": "demo-token"
+}
+```
+
+Error Response (401):
+```json
+{
+  "success": false,
+  "message": "Invalid email or password"
+}
+```
+
+## Features Implemented
+
+✓ Backend Express server with CORS  
+✓ Login API endpoint with validation  
+✓ Health check endpoint  
+✓ Material 3 Flutter Web login page  
+✓ Responsive design (mobile & desktop)  
+✓ Form validation  
+✓ Loading states  
+✓ Error handling  
+✓ Success/error messages  
+
+## Development Notes
+
+- This is Step 1 only: Login functionality
+- No database yet (in-memory test user)
+- No registration, password reset, or dashboard
+- No navigation after login (shows success message)
+- Demo token only (no JWT implementation)
+
+## Next Steps
+
+Future features will include:
+- User registration
+- Dashboard
+- Truck/driver profiles
+- Trip posting
+- Customer connections
+- Real authentication with JWT
+- Database integration
