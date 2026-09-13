@@ -1,0 +1,18 @@
+name: backhaul_frontend
+description: Backhaul truck marketplace - Frontend
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  flutter_riverpod: ^2.4.0
+  go_router: ^12.0.0
+  shared_preferences: ^2.2.2
+
+flutter:
+  uses-material-design: true
