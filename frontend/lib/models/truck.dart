@@ -59,12 +59,12 @@ class Truck {
 
   // French display names for truck types
   static const Map<String, String> truckTypeDisplayNames = {
-    'FLATBED': 'Camion bâché',
+    'FLATBED': 'Plateau',
     'TARP': 'Camion bâché',
     'REFRIGERATED': 'Camion frigorifique',
     'VAN': 'Fourgon',
-    'SEMI_TRAILER': 'Plateau',
-    'OTHER': 'Semi-remorque',
+    'SEMI_TRAILER': 'Semi-remorque',
+    'OTHER': 'Autre',
   };
 
   // Get French display name

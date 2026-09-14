@@ -2,9 +2,18 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user.dart';
 import '../models/truck.dart';
+import 'storage_service.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:5000/api';
+
+  Future<Map<String, String>> _authHeaders() async {
+    final token = await StorageService().getToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
 
   Future<Map<String, dynamic>> register({
     required String email,
@@ -119,9 +128,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/trucks/my'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await _authHeaders(),
       ).timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
@@ -145,29 +152,55 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> getTruck(int id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/trucks/$id'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'truck': Truck.fromJson(data['truck']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to get truck',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
   Future<Map<String, dynamic>> createTruck({
-    required String truck_type,
+    required String truckType,
     String brand = '',
     String model = '',
-    required double max_weight,
-    double? max_volume,
-    String registration_number = '',
-    String image_url = '',
+    required double maxWeight,
+    double? maxVolume,
+    String registrationNumber = '',
+    String imageUrl = '',
   }) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/trucks'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await _authHeaders(),
         body: jsonEncode({
-          'truck_type': truck_type,
+          'truck_type': truckType,
           'brand': brand,
           'model': model,
-          'max_weight': max_weight,
-          'max_volume': max_volume,
-          'registration_number': registration_number,
-          'image_url': image_url,
+          'max_weight': maxWeight,
+          'max_volume': maxVolume,
+          'registration_number': registrationNumber,
+          'image_url': imageUrl,
         }),
       ).timeout(const Duration(seconds: 10));
 
@@ -194,28 +227,26 @@ class ApiService {
 
   Future<Map<String, dynamic>> updateTruck(
     int id, {
-    required String truck_type,
+    required String truckType,
     String brand = '',
     String model = '',
-    required double max_weight,
-    double? max_volume,
-    String registration_number = '',
-    String image_url = '',
+    required double maxWeight,
+    double? maxVolume,
+    String registrationNumber = '',
+    String imageUrl = '',
   }) async {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/trucks/$id'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await _authHeaders(),
         body: jsonEncode({
-          'truck_type': truck_type,
+          'truck_type': truckType,
           'brand': brand,
           'model': model,
-          'max_weight': max_weight,
-          'max_volume': max_volume,
-          'registration_number': registration_number,
-          'image_url': image_url,
+          'max_weight': maxWeight,
+          'max_volume': maxVolume,
+          'registration_number': registrationNumber,
+          'image_url': imageUrl,
         }),
       ).timeout(const Duration(seconds: 10));
 
@@ -244,9 +275,7 @@ class ApiService {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/trucks/$id'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await _authHeaders(),
       ).timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);

@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'login_page.dart';
 import 'pages/register_page.dart';
 import 'pages/profile_page.dart';
-import 'pages/driver_home_page.dart';
 import 'pages/customer_home_page.dart';
+import 'pages/driver_navigation.dart';
+import 'pages/add_truck_page.dart';
+import 'pages/edit_truck_page.dart';
+import 'pages/truck_details_page.dart';
 import 'providers/auth_provider.dart';
 
 void main() {
@@ -30,8 +33,8 @@ class BackhaulApp extends ConsumerWidget {
           return null;
         }
 
-        final isAuthRoute = state.matchedLocation == '/login' ||
-                           state.matchedLocation == '/register';
+        final location = state.matchedLocation;
+        final isAuthRoute = location == '/login' || location == '/register';
 
         // Not authenticated and trying to access protected route
         if (!isAuthenticated && !isAuthRoute) {
@@ -48,12 +51,27 @@ class BackhaulApp extends ConsumerWidget {
         }
 
         // Authenticated and on root, redirect to appropriate home
-        if (isAuthenticated && state.matchedLocation == '/') {
+        if (isAuthenticated && location == '/') {
           if (user?.isDriver ?? false) {
             return '/driver-home';
           } else {
             return '/customer-home';
           }
+        }
+
+        final isDriverRoute = location.startsWith('/driver') ||
+            location.startsWith('/add-truck') ||
+            location.startsWith('/edit-truck') ||
+            location.startsWith('/driver-truck');
+
+        // A customer must not access driver (truck management) screens
+        if (isAuthenticated && user?.isCustomer == true && isDriverRoute) {
+          return '/customer-home';
+        }
+
+        // A driver must not access customer screens
+        if (isAuthenticated && user?.isDriver == true && location.startsWith('/customer')) {
+          return '/driver-home';
         }
 
         return null;
@@ -69,7 +87,33 @@ class BackhaulApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/driver-home',
-          builder: (context, state) => const DriverHomePage(),
+          builder: (context, state) => const DriverNavigation(),
+        ),
+        GoRoute(
+          path: '/driver-trucks',
+          builder: (context, state) => const DriverNavigation(),
+        ),
+        GoRoute(
+          path: '/driver-profile',
+          builder: (context, state) => const DriverNavigation(),
+        ),
+        GoRoute(
+          path: '/add-truck',
+          builder: (context, state) => const AddTruckPage(),
+        ),
+        GoRoute(
+          path: '/edit-truck/:id',
+          builder: (context, state) {
+            final truckId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+            return EditTruckPage(truckId: truckId);
+          },
+        ),
+        GoRoute(
+          path: '/driver-truck-details/:id',
+          builder: (context, state) {
+            final truckId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+            return TruckDetailsPage(truckId: truckId);
+          },
         ),
         GoRoute(
           path: '/customer-home',
