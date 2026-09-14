@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/truck.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/info_row.dart';
+import '../widgets/section_title.dart';
+import '../widgets/states.dart';
 
 class TruckDetailsPage extends StatefulWidget {
   final int truckId;
@@ -45,7 +49,7 @@ class _TruckDetailsPageState extends State<TruckDetailsPage> {
       }
     } catch (e) {
       setState(() {
-        _loadError = 'Erreur: $e';
+        _loadError = 'Vérifiez votre connexion et réessayez.';
         _isLoading = false;
       });
     }
@@ -56,14 +60,14 @@ class _TruckDetailsPageState extends State<TruckDetailsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Détails du camion'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           if (_truck != null)
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: const Icon(Icons.edit_outlined),
               tooltip: 'Modifier',
               onPressed: () async {
-                final updated = await context.push<bool>('/edit-truck/${_truck!.id}');
+                final updated =
+                    await context.push<bool>('/edit-truck/${_truck!.id}');
                 if (updated == true) {
                   _loadTruck();
                 }
@@ -72,106 +76,160 @@ class _TruckDetailsPageState extends State<TruckDetailsPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingState(message: 'Chargement du camion…')
           : _loadError != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(_loadError!),
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: _loadTruck,
-                        child: const Text('RÉESSAYER'),
-                      ),
-                    ],
-                  ),
-                )
+              ? ErrorState(message: _loadError!, onRetry: _loadTruck)
               : _buildDetails(_truck!),
     );
   }
 
   Widget _buildDetails(Truck truck) {
+    final brandModel = [
+      if (truck.brand.isNotEmpty) truck.brand,
+      if (truck.model.isNotEmpty) truck.model,
+    ].join(' ');
+    final hasImage = truck.imageUrl != null && truck.imageUrl!.trim().isNotEmpty;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(
-            Icons.local_shipping,
-            size: 80,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            truck.displayName,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.primary, AppColors.secondary],
+              ),
+              borderRadius: BorderRadius.circular(AppTheme.radius),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.local_shipping_rounded,
+                    size: 34,
+                    color: Colors.white,
+                  ),
                 ),
-          ),
-          if (truck.brand.isNotEmpty || truck.model.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              [if (truck.brand.isNotEmpty) truck.brand, if (truck.model.isNotEmpty) truck.model]
-                  .join(' '),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
+                const SizedBox(height: 14),
+                Text(
+                  truck.displayName,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                if (brandModel.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    brandModel,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
           const SizedBox(height: 24),
-          _detailTile(
-            icon: Icons.scale,
-            label: 'Poids maximal',
-            value: '${truck.maxWeight.toStringAsFixed(2)} kg',
+          const SectionTitle(title: 'Caractéristiques'),
+          const SizedBox(height: 12),
+          Card(
+            child: Column(
+              children: [
+                InfoRow(
+                  icon: Icons.scale_rounded,
+                  label: 'Poids maximal',
+                  value: '${truck.maxWeight.toStringAsFixed(2)} kg',
+                ),
+                if (truck.maxVolume != null) ...[
+                  const Divider(),
+                  InfoRow(
+                    icon: Icons.view_in_ar_rounded,
+                    label: 'Volume maximal',
+                    value: '${truck.maxVolume!.toStringAsFixed(2)} m³',
+                  ),
+                ],
+                if (truck.registrationNumber.isNotEmpty) ...[
+                  const Divider(),
+                  InfoRow(
+                    icon: Icons.confirmation_number_outlined,
+                    label: 'Numéro d\'immatriculation',
+                    value: truck.registrationNumber,
+                  ),
+                ],
+              ],
+            ),
           ),
-          if (truck.maxVolume != null)
-            _detailTile(
-              icon: Icons.volume_up,
-              label: 'Volume maximal',
-              value: '${truck.maxVolume!.toStringAsFixed(2)} m³',
-            ),
-          if (truck.registrationNumber.isNotEmpty)
-            _detailTile(
-              icon: Icons.credit_card,
-              label: 'Numéro d\'immatriculation',
-              value: truck.registrationNumber,
-            ),
-          if (truck.imageUrl != null && truck.imageUrl!.isNotEmpty) ...[
+          if (hasImage) ...[
             const SizedBox(height: 24),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+            const SectionTitle(title: 'Photo du camion'),
+            const SizedBox(height: 12),
+            Card(
+              clipBehavior: Clip.antiAlias,
               child: Image.network(
                 truck.imageUrl!,
-                height: 200,
+                height: 220,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => Container(
-                  height: 200,
-                  color: Colors.grey.shade200,
-                  child: const Center(child: Icon(Icons.broken_image, size: 48)),
+                  height: 220,
+                  color: AppColors.primarySoft,
+                  alignment: Alignment.center,
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.broken_image_outlined,
+                        size: 48,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'Image indisponible',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () async {
+              final updated =
+                  await context.push<bool>('/edit-truck/${truck.id}');
+              if (updated == true) {
+                _loadTruck();
+              }
+            },
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Modifier ce camion'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: const Text('Retour à la liste'),
+          ),
+          const SizedBox(height: 8),
         ],
-      ),
-    );
-  }
-
-  Widget _detailTile({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.blue),
-        title: Text(label),
-        trailing: Text(
-          value,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
       ),
     );
   }

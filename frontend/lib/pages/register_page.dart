@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/section_title.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -17,6 +18,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _phoneController = TextEditingController();
 
   String _selectedRole = 'CUSTOMER';
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -40,17 +42,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           role: _selectedRole,
         );
 
-    if (success && mounted) {
-      // Navigation will be handled by router
-    } else if (mounted) {
+    if (!success && mounted) {
       final error = ref.read(authProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error ?? 'Registration failed'),
-          backgroundColor: Theme.of(context).colorScheme.error,
+          content: Text(error ?? 'Échec de la création du compte'),
         ),
       );
     }
+    // Navigation will be handled by router redirect
   }
 
   @override
@@ -61,129 +61,133 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Register'),
+        title: const Text('Créer un compte'),
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Container(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: isDesktop ? 400 : double.infinity,
+              maxWidth: isDesktop ? 500 : double.infinity,
             ),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Icon
-                  Icon(
-                    Icons.person_add_rounded,
-                    size: 80,
-                    color: Theme.of(context).colorScheme.primary,
+                  const SectionTitle(
+                    title: 'Informations personnelles',
+                    subtitle:
+                        'Ces informations seront visibles par les autres utilisateurs.',
                   ),
-                  const SizedBox(height: 24),
-
-                  // Title
-                  Text(
-                    'Create Account',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Full Name
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _fullNameController,
+                    textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
-                      labelText: 'Full Name',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_outlined),
+                      labelText: 'Nom complet',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Full name is required';
+                        return 'Le nom complet est requis';
                       }
                       return null;
                     },
                     enabled: !authState.isLoading,
                   ),
-                  const SizedBox(height: 16),
-
-                  // Email
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email_outlined),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Email is required';
-                      }
-                      if (!value.contains('@')) {
-                        return 'Enter a valid email';
-                      }
-                      return null;
-                    },
-                    enabled: !authState.isLoading,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Password
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.lock_outlined),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Password is required';
-                      }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
-                    },
-                    enabled: !authState.isLoading,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Phone
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
-                      labelText: 'Phone (optional)',
-                      border: OutlineInputBorder(),
+                      labelText: 'Téléphone (optionnel)',
                       prefixIcon: Icon(Icons.phone_outlined),
                     ),
                     enabled: !authState.isLoading,
                   ),
+                  const SizedBox(height: 24),
+                  const SectionTitle(
+                    title: 'Sécurité du compte',
+                    subtitle: 'Vos identifiants de connexion.',
+                  ),
                   const SizedBox(height: 16),
-
-                  // Role selector
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Adresse email',
+                      prefixIcon: Icon(Icons.mail_outline_rounded),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'L\'adresse email est requise';
+                      }
+                      if (!value.contains('@')) {
+                        return 'Veuillez saisir une adresse email valide';
+                      }
+                      return null;
+                    },
+                    enabled: !authState.isLoading,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      labelText: 'Mot de passe',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                        tooltip: _obscurePassword
+                            ? 'Afficher le mot de passe'
+                            : 'Masquer le mot de passe',
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Le mot de passe est requis';
+                      }
+                      if (value.length < 6) {
+                        return 'Le mot de passe doit contenir au moins 6 caractères';
+                      }
+                      return null;
+                    },
+                    enabled: !authState.isLoading,
+                  ),
+                  const SizedBox(height: 24),
+                  const SectionTitle(
+                    title: 'Votre profil',
+                    subtitle:
+                        'Choisissez le type de compte qui correspond à votre activité.',
+                  ),
+                  const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     initialValue: _selectedRole,
                     decoration: const InputDecoration(
-                      labelText: 'I am a',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.work_outlined),
+                      labelText: 'Je suis un(e)',
+                      prefixIcon: Icon(Icons.badge_outlined),
                     ),
                     items: const [
                       DropdownMenuItem(
                         value: 'CUSTOMER',
-                        child: Text('Customer (looking for trucks)'),
+                        child: Text('Client (je cherche des camions)'),
                       ),
                       DropdownMenuItem(
                         value: 'DRIVER',
-                        child: Text('Driver (have a truck)'),
+                        child: Text('Chauffeur (je dispose d\'un camion)'),
                       ),
                     ],
                     onChanged: authState.isLoading
@@ -197,37 +201,31 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           },
                   ),
                   const SizedBox(height: 24),
-
-                  // Register button
                   FilledButton(
-                    onPressed: authState.isLoading ? null : _handleRegister,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
+                    onPressed: authState.isLoading
+                        ? null
+                        : _handleRegister,
                     child: authState.isLoading
                         ? const SizedBox(
-                            height: 20,
-                            width: 20,
+                            width: 22,
+                            height: 22,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                              strokeWidth: 2.5,
                               color: Colors.white,
                             ),
                           )
-                        : const Text(
-                            'Register',
-                            style: TextStyle(fontSize: 16),
-                          ),
+                        : const Text('Créer mon compte'),
                   ),
                   const SizedBox(height: 16),
-
-                  // Login link
-                  TextButton(
-                    onPressed: authState.isLoading
-                        ? null
-                        : () {
-                            Navigator.of(context).pop();
-                          },
-                    child: const Text('Already have an account? Login'),
+                  Center(
+                    child: TextButton(
+                      onPressed: authState.isLoading
+                          ? null
+                          : () {
+                              Navigator.of(context).pop();
+                            },
+                      child: const Text('Déjà un compte ? Se connecter'),
+                    ),
                   ),
                 ],
               ),

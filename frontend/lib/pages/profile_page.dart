@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/user.dart';
 import '../providers/auth_provider.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_avatar.dart';
+import '../widgets/info_row.dart';
+import '../widgets/section_title.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -23,7 +28,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void initState() {
     super.initState();
     final user = ref.read(authProvider).currentUser;
-    _fullNameController = TextEditingController(text: user?.profile.fullName ?? '');
+    _fullNameController = TextEditingController(
+      text: user?.profile.fullName ?? '',
+    );
     _phoneController = TextEditingController(text: user?.profile.phone ?? '');
     _cityController = TextEditingController(text: user?.profile.city ?? '');
     _wilayaController = TextEditingController(text: user?.profile.wilaya ?? '');
@@ -45,9 +52,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     final success = await ref.read(authProvider.notifier).updateProfile(
           fullName: _fullNameController.text.trim(),
-          phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-          city: _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
-          wilaya: _wilayaController.text.trim().isEmpty ? null : _wilayaController.text.trim(),
+          phone: _phoneController.text.trim().isEmpty
+              ? null
+              : _phoneController.text.trim(),
+          city: _cityController.text.trim().isEmpty
+              ? null
+              : _cityController.text.trim(),
+          wilaya: _wilayaController.text.trim().isEmpty
+              ? null
+              : _wilayaController.text.trim(),
         );
 
     if (success && mounted) {
@@ -56,15 +69,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Profile updated successfully'),
-          backgroundColor: Colors.green,
+          content: Text('Profil mis à jour avec succès'),
+          backgroundColor: AppColors.success,
         ),
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Failed to update profile'),
-          backgroundColor: Theme.of(context).colorScheme.error,
+        const SnackBar(
+          content: Text('Échec de la mise à jour du profil'),
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -92,7 +105,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     if (user == null) {
       return const Scaffold(
-        body: Center(child: Text('No user data')),
+        body: Center(
+          child: Text(
+            'Aucune donnée utilisateur',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
       );
     }
 
@@ -101,244 +119,225 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const Text('Profil'),
         actions: [
           if (!_isEditing)
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: const Icon(Icons.edit_outlined),
               onPressed: () {
                 setState(() {
                   _isEditing = true;
                 });
               },
-              tooltip: 'Edit profile',
+              tooltip: 'Modifier le profil',
             ),
         ],
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Container(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: isDesktop ? 500 : double.infinity,
+              maxWidth: isDesktop ? 520 : double.infinity,
             ),
             child: _isEditing
-                ? _buildEditForm(user, context)
-                : _buildInfoDisplay(user, context),
+                ? _buildEditForm(user)
+                : _buildInfoDisplay(user),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildInfoDisplay(User user, BuildContext context) {
+  Widget _buildInfoDisplay(User user) {
     final profile = user.profile;
+    final roleColor = user.isDriver
+        ? (AppColors.accent, AppColors.accentSoft)
+        : (AppColors.success, AppColors.successSoft);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Center(
-          child: CircleAvatar(
-            radius: 50,
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            child: Icon(
-              user.isDriver ? Icons.local_shipping : Icons.person,
-              size: 50,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+            ),
+            child: AppAvatar(
+              name: profile.fullName,
+              imageUrl: profile.profileImage,
+              radius: 40,
             ),
           ),
         ),
-        const SizedBox(height: 16),
-
+        const SizedBox(height: 14),
         Center(
           child: Chip(
             label: Text(
-              user.isDriver ? 'DRIVER' : 'CUSTOMER',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              user.isDriver ? 'Chauffeur certifié' : 'Client',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: roleColor.$1,
+              ),
             ),
-            backgroundColor: user.isDriver
-                ? Colors.blue.shade100
-                : Colors.green.shade100,
+            backgroundColor: roleColor.$2,
+            side: BorderSide(color: roleColor.$2),
           ),
         ),
-        const SizedBox(height: 16),
-
+        const SizedBox(height: 12),
         Text(
           profile.fullName.isNotEmpty ? profile.fullName : '—',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: AppColors.text,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           user.email,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.textSecondary,
+          ),
         ),
         const SizedBox(height: 24),
-
+        const SectionTitle(
+          title: 'Informations',
+          subtitle: 'Vos coordonnées de contact',
+        ),
+        const SizedBox(height: 12),
         Card(
           child: Column(
             children: [
-              ListTile(
-                leading: const Icon(Icons.phone_outlined, color: Colors.blue),
-                title: const Text('Téléphone'),
-                subtitle: Text(profile.phone ?? '—'),
+              InfoRow(
+                icon: Icons.phone_outlined,
+                label: 'Téléphone',
+                value: profile.phone ?? '—',
               ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.location_city_outlined, color: Colors.blue),
-                title: const Text('Ville'),
-                subtitle: Text(profile.city ?? '—'),
+              const Divider(),
+              InfoRow(
+                icon: Icons.location_city_outlined,
+                label: 'Ville',
+                value: profile.city ?? '—',
               ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.map_outlined, color: Colors.blue),
-                title: const Text('Wilaya'),
-                subtitle: Text(profile.wilaya ?? '—'),
+              const Divider(),
+              InfoRow(
+                icon: Icons.map_outlined,
+                label: 'Wilaya',
+                value: profile.wilaya ?? '—',
               ),
             ],
           ),
         ),
+        if (user.isDriver) ...[
+          const SizedBox(height: 24),
+          const SectionTitle(
+            title: 'Gestion',
+            subtitle: 'Gérez votre activité',
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.local_shipping_outlined),
+              title: const Text('Mes camions'),
+              subtitle: const Text('Ajouter et modifier vos véhicules'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => GoRouter.of(context).go('/driver-trucks'),
+            ),
+          ),
+        ],
         const SizedBox(height: 32),
-
         FilledButton.icon(
           onPressed: () {
             setState(() {
               _isEditing = true;
             });
           },
-          icon: const Icon(Icons.edit),
+          icon: const Icon(Icons.edit_outlined),
           label: const Text('Modifier'),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: _handleLogout,
-          icon: const Icon(Icons.logout),
+          icon: const Icon(Icons.logout_rounded),
           label: const Text('Déconnexion'),
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            foregroundColor: Theme.of(context).colorScheme.error,
+            foregroundColor: AppColors.error,
+            side: const BorderSide(color: AppColors.errorSoft),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildEditForm(User user, BuildContext context) {
+  Widget _buildEditForm(User user) {
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: CircleAvatar(
-              radius: 50,
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              child: Icon(
-                user.isDriver ? Icons.local_shipping : Icons.person,
-                size: 50,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
-            ),
+          const SectionTitle(
+            title: 'Modifier mon profil',
+            subtitle: 'Mettez à jour vos informations personnelles',
           ),
-          const SizedBox(height: 24),
-
-          Center(
-            child: Chip(
-              label: Text(
-                user.isDriver ? 'DRIVER' : 'CUSTOMER',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              backgroundColor: user.isDriver
-                  ? Colors.blue.shade100
-                  : Colors.green.shade100,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          Center(
-            child: Text(
-              user.email,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 32),
-
+          const SizedBox(height: 20),
           TextFormField(
             controller: _fullNameController,
             decoration: const InputDecoration(
-              labelText: 'Full Name',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.person_outlined),
+              labelText: 'Nom complet',
+              prefixIcon: Icon(Icons.person_outline_rounded),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return 'Full name is required';
+                return 'Le nom complet est requis';
               }
               return null;
             },
-            enabled: true,
           ),
-          const SizedBox(height: 16),
-
+          const SizedBox(height: 12),
           TextFormField(
             controller: _phoneController,
             keyboardType: TextInputType.phone,
             decoration: const InputDecoration(
-              labelText: 'Phone',
-              border: OutlineInputBorder(),
+              labelText: 'Téléphone',
               prefixIcon: Icon(Icons.phone_outlined),
             ),
           ),
-          const SizedBox(height: 16),
-
+          const SizedBox(height: 12),
           TextFormField(
             controller: _cityController,
             decoration: const InputDecoration(
-              labelText: 'City',
-              border: OutlineInputBorder(),
+              labelText: 'Ville',
               prefixIcon: Icon(Icons.location_city_outlined),
             ),
           ),
-          const SizedBox(height: 16),
-
+          const SizedBox(height: 12),
           TextFormField(
             controller: _wilayaController,
             decoration: const InputDecoration(
               labelText: 'Wilaya',
-              border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.map_outlined),
             ),
           ),
-          const SizedBox(height: 32),
-
+          const SizedBox(height: 28),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
                   onPressed: _handleCancel,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Cancel'),
+                  child: const Text('Annuler'),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: FilledButton(
                   onPressed: _handleSave,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Save'),
+                  child: const Text('Enregistrer'),
                 ),
               ),
             ],

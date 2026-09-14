@@ -10,6 +10,7 @@ import 'pages/add_truck_page.dart';
 import 'pages/edit_truck_page.dart';
 import 'pages/truck_details_page.dart';
 import 'providers/auth_provider.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const ProviderScope(child: BackhaulApp()));
@@ -136,15 +137,9 @@ class BackhaulApp extends ConsumerWidget {
     });
 
     return MaterialApp.router(
-      title: 'Backhaul',
+      title: 'Camoins',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
-          brightness: Brightness.light,
-        ),
-      ),
+      theme: AppTheme.light,
       routerConfig: router,
     );
   }
