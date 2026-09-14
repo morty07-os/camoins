@@ -38,6 +38,24 @@ function initializeDatabase() {
     )
   `);
 
+  // Trucks table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trucks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      driver_id INTEGER NOT NULL,
+      truck_type TEXT NOT NULL CHECK(truck_type IN ('FLATBED', 'TARP', 'REFRIGERATED', 'VAN', 'SEMI_TRAILER', 'OTHER')),
+      brand TEXT,
+      model TEXT,
+      max_weight REAL NOT NULL,
+      max_volume REAL,
+      registration_number TEXT,
+      image_url TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log('✓ Database tables initialized');
 }
 
