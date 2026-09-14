@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'driver_home_page.dart';
 import 'driver_trucks_page.dart';
+import 'profile_page.dart';
 
 class DriverNavigation extends ConsumerWidget {
   const DriverNavigation({super.key});
@@ -38,7 +40,7 @@ class DriverNavigation extends ConsumerWidget {
       return const DriverHomePage();
     } else if (path.contains('/driver-trucks')) {
       return const DriverTrucksPage();
-    } else if (path.contains('/profile')) {
+    } else if (path.contains('/driver-profile')) {
       return const ProfilePage();
     }
     return const DriverHomePage();
@@ -49,7 +51,7 @@ class DriverNavigation extends ConsumerWidget {
       return 0;
     } else if (path.contains('/driver-trucks')) {
       return 1;
-    } else if (path.contains('/profile')) {
+    } else if (path.contains('/driver-profile')) {
       return 2;
     }
     return 0;
@@ -64,62 +66,8 @@ class DriverNavigation extends ConsumerWidget {
         GoRouter.of(context).go('/driver-trucks');
         break;
       case 2:
-        GoRouter.of(context).go('/profile');
+        GoRouter.of(context).go('/driver-profile');
         break;
     }
-  }
-}
-
-class DriverHomePage extends StatelessWidget {
-  const DriverHomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tableau de bord'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.dashboard, size: 64, color: Colors.blue),
-            const SizedBox(height: 16),
-            const Text(
-              'Bienvenue sur votre tableau de bord',
-              style: TextStyle(fontSize: 18),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.person, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text(
-              'Page de profil',
-              style: TextStyle(fontSize: 18),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

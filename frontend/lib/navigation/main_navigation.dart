@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../pages/driver_navigation.dart';
 import '../pages/driver_trucks_page.dart';
+import '../pages/profile_page.dart';
 
 class TruckDetailsPage extends StatelessWidget {
   final int? truckId;
