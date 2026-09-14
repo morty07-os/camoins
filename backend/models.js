@@ -109,4 +109,76 @@ const ProfileModel = {
   }
 };
 
-module.exports = { UserModel, ProfileModel };
+// Truck model functions
+const TruckModel = {
+  create(driverId, truckData) {
+    const stmt = db.prepare(`
+      INSERT INTO trucks (driver_id, truck_type, brand, model, max_weight, max_volume, registration_number, image_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      driverId,
+      truckData.truck_type,
+      truckData.brand || null,
+      truckData.model || null,
+      truckData.max_weight,
+      truckData.max_volume || null,
+      truckData.registration_number || null,
+      truckData.image_url || null
+    );
+
+    return result.lastInsertRowid;
+  },
+
+  findByDriverId(driverId) {
+    const stmt = db.prepare(`
+      SELECT id, driver_id, truck_type, brand, model, max_weight, max_volume,
+             registration_number, image_url, created_at, updated_at
+      FROM trucks
+      WHERE driver_id = ?
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(driverId);
+  },
+
+  findById(id) {
+    const stmt = db.prepare(`
+      SELECT id, driver_id, truck_type, brand, model, max_weight, max_volume,
+             registration_number, image_url, created_at, updated_at
+      FROM trucks
+      WHERE id = ?
+    `);
+    return stmt.get(id);
+  },
+
+  update(id, truckData) {
+    const stmt = db.prepare(`
+      UPDATE trucks
+      SET truck_type = ?, brand = ?, model = ?, max_weight = ?, max_volume = ?,
+          registration_number = ?, image_url = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    const result = stmt.run(
+      truckData.truck_type,
+      truckData.brand || null,
+      truckData.model || null,
+      truckData.max_weight,
+      truckData.max_volume || null,
+      truckData.registration_number || null,
+      truckData.image_url || null,
+      id
+    );
+
+    return result.changes > 0;
+  },
+
+  delete(id) {
+    const stmt = db.prepare(`DELETE FROM trucks WHERE id = ?`);
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+};
+
+module.exports = { UserModel, ProfileModel, TruckModel };

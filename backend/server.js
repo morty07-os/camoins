@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { UserModel, ProfileModel } = require('./models');
+const { UserModel, ProfileModel, TruckModel } = require('./models');
 const { generateToken, authMiddleware } = require('./auth');
 
 const app = express();
@@ -241,6 +241,294 @@ app.put('/api/profile', authMiddleware, (req, res) => {
     });
   } catch (error) {
     console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Truck type validation
+const VALID_TRUCK_TYPES = ['FLATBED', 'TARP', 'REFRIGERATED', 'VAN', 'SEMI_TRAILER', 'OTHER'];
+
+// Middleware to check if user is a driver
+const isDriverMiddleware = (req, res, next) => {
+  if (req.user.role !== 'DRIVER') {
+    return res.status(403).json({
+      success: false,
+      message: 'Only drivers can access this resource'
+    });
+  }
+  next();
+};
+
+// Get all trucks for current driver
+app.get('/api/trucks/my', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const trucks = TruckModel.findByDriverId(req.user.id);
+    res.json({
+      success: true,
+      trucks
+    });
+  } catch (error) {
+    console.error('Get trucks error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Create a new truck
+app.post('/api/trucks', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const { truck_type, brand, model, max_weight, max_volume, registration_number, image_url } = req.body;
+
+    // Validate required fields
+    if (!truck_type || !max_weight) {
+      return res.status(400).json({
+        success: false,
+        message: 'Truck type and maximum weight are required'
+      });
+    }
+
+    // Validate truck type
+    if (!VALID_TRUCK_TYPES.includes(truck_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid truck type'
+      });
+    }
+
+    // Validate max_weight is a positive number
+    if (typeof max_weight !== 'number' || max_weight <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum weight must be a positive number'
+      });
+    }
+
+    // Validate max_volume if provided
+    if (max_volume !== undefined && max_volume !== null && (typeof max_volume !== 'number' || max_volume <= 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum volume must be a positive number'
+      });
+    }
+
+    // Create truck
+    const truckId = TruckModel.create(req.user.id, {
+      truck_type,
+      brand,
+      model,
+      max_weight,
+      max_volume,
+      registration_number,
+      image_url
+    });
+
+    // Get created truck
+    const truck = TruckModel.findById(truckId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Truck created successfully',
+      truck
+    });
+  } catch (error) {
+    console.error('Create truck error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Get a specific truck
+app.get('/api/trucks/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const truckId = parseInt(req.params.id);
+
+    if (isNaN(truckId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid truck ID'
+      });
+    }
+
+    const truck = TruckModel.findById(truckId);
+
+    if (!truck) {
+      return res.status(404).json({
+        success: false,
+        message: 'Truck not found'
+      });
+    }
+
+    // Check if truck belongs to current driver
+    if (truck.driver_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to access this truck'
+      });
+    }
+
+    res.json({
+      success: true,
+      truck
+    });
+  } catch (error) {
+    console.error('Get truck error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Update a truck
+app.put('/api/trucks/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const truckId = parseInt(req.params.id);
+
+    if (isNaN(truckId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid truck ID'
+      });
+    }
+
+    const truck = TruckModel.findById(truckId);
+
+    if (!truck) {
+      return res.status(404).json({
+        success: false,
+        message: 'Truck not found'
+      });
+    }
+
+    // Check if truck belongs to current driver
+    if (truck.driver_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to modify this truck'
+      });
+    }
+
+    const { truck_type, brand, model, max_weight, max_volume, registration_number, image_url } = req.body;
+
+    // Validate required fields
+    if (!truck_type || !max_weight) {
+      return res.status(400).json({
+        success: false,
+        message: 'Truck type and maximum weight are required'
+      });
+    }
+
+    // Validate truck type
+    if (!VALID_TRUCK_TYPES.includes(truck_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid truck type'
+      });
+    }
+
+    // Validate max_weight
+    if (typeof max_weight !== 'number' || max_weight <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum weight must be a positive number'
+      });
+    }
+
+    // Validate max_volume if provided
+    if (max_volume !== undefined && max_volume !== null && (typeof max_volume !== 'number' || max_volume <= 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum volume must be a positive number'
+      });
+    }
+
+    // Update truck
+    const updated = TruckModel.update(truckId, {
+      truck_type,
+      brand,
+      model,
+      max_weight,
+      max_volume,
+      registration_number,
+      image_url
+    });
+
+    if (!updated) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update truck'
+      });
+    }
+
+    // Get updated truck
+    const updatedTruck = TruckModel.findById(truckId);
+
+    res.json({
+      success: true,
+      message: 'Truck updated successfully',
+      truck: updatedTruck
+    });
+  } catch (error) {
+    console.error('Update truck error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Delete a truck
+app.delete('/api/trucks/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const truckId = parseInt(req.params.id);
+
+    if (isNaN(truckId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid truck ID'
+      });
+    }
+
+    const truck = TruckModel.findById(truckId);
+
+    if (!truck) {
+      return res.status(404).json({
+        success: false,
+        message: 'Truck not found'
+      });
+    }
+
+    // Check if truck belongs to current driver
+    if (truck.driver_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to delete this truck'
+      });
+    }
+
+    // Delete truck
+    const deleted = TruckModel.delete(truckId);
+
+    if (!deleted) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete truck'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Truck deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete truck error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'
