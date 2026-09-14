@@ -14,20 +14,23 @@ class DriverNavigation extends ConsumerWidget {
 
     return Scaffold(
       body: _getPage(currentPath),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _getSelectedIndex(currentPath),
-        onTap: (index) => _onTabTap(index, context),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Tableau de bord',
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _getSelectedIndex(currentPath),
+        onDestinationSelected: (index) => _onTabTap(index, context),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Accueil',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_shipping),
+          NavigationDestination(
+            icon: Icon(Icons.local_shipping_outlined),
+            selectedIcon: Icon(Icons.local_shipping_rounded),
             label: 'Mes camions',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
             label: 'Profil',
           ),
         ],

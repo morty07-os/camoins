@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/truck.dart';
 import '../services/api_service.dart';
+import '../widgets/section_title.dart';
 
 class AddTruckPage extends StatefulWidget {
   const AddTruckPage({super.key});
@@ -61,7 +62,9 @@ class _AddTruckPageState extends State<AddTruckPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response['message'] ?? 'Erreur lors de l\'ajout du camion'),
+              content: Text(
+                response['message'] ?? 'Erreur lors de l\'ajout du camion',
+              ),
             ),
           );
         }
@@ -84,20 +87,24 @@ class _AddTruckPageState extends State<AddTruckPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ajouter un camion'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SectionTitle(
+                title: 'Type de camion',
+                subtitle: 'Choisissez la catégorie de votre véhicule',
+              ),
+              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _selectedTruckType,
                 decoration: const InputDecoration(
                   labelText: 'Type de camion *',
-                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.local_shipping_outlined),
                 ),
                 items: Truck.truckTypeDisplayNames.entries
                     .map((entry) => DropdownMenuItem<String>(
@@ -111,29 +118,50 @@ class _AddTruckPageState extends State<AddTruckPage> {
                   }
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              const SectionTitle(
+                title: 'Informations du véhicule',
+                subtitle: 'Identifiez votre camion',
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _brandController,
+                textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
                   labelText: 'Marque',
-                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.directions_car_outlined),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _modelController,
+                textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
                   labelText: 'Modèle',
-                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.badge_outlined),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _registrationNumberController,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Numéro d\'immatriculation',
+                  prefixIcon: Icon(Icons.confirmation_number_outlined),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const SectionTitle(
+                title: 'Capacités',
+                subtitle: 'Poids et volume que le camion peut transporter',
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _maxWeightController,
                 decoration: const InputDecoration(
                   labelText: 'Poids maximal *',
                   hintText: 'en kilogrammes',
-                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.scale_rounded),
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) {
@@ -147,13 +175,13 @@ class _AddTruckPageState extends State<AddTruckPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _maxVolumeController,
                 decoration: const InputDecoration(
                   labelText: 'Volume maximal (optionnel)',
                   hintText: 'en mètres cubes',
-                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.view_in_ar_rounded),
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) {
@@ -165,20 +193,17 @@ class _AddTruckPageState extends State<AddTruckPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _registrationNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Numéro d\'immatriculation',
-                  border: OutlineInputBorder(),
-                ),
+              const SizedBox(height: 24),
+              const SectionTitle(
+                title: 'Photo du camion',
+                subtitle: 'Une photo de votre véhicule (facultatif)',
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _imageUrlController,
                 decoration: const InputDecoration(
                   labelText: 'URL de l\'image',
-                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.photo_outlined),
                 ),
               ),
               const SizedBox(height: 32),
@@ -189,24 +214,21 @@ class _AddTruckPageState extends State<AddTruckPage> {
                       onPressed: _isSaving
                           ? null
                           : () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
                       child: const Text('ANNULER'),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: ElevatedButton(
+                    child: FilledButton(
                       onPressed: _isSaving ? null : _saveTruck,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
                       child: _isSaving
                           ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
                             )
                           : const Text('SAUVEGARDER'),
                     ),
