@@ -181,4 +181,201 @@ const TruckModel = {
   }
 };
 
-module.exports = { UserModel, ProfileModel, TruckModel };
+// Trip model functions
+const TripModel = {
+  create(driverId, tripData) {
+    const stmt = db.prepare(`
+      INSERT INTO trips (driver_id, truck_id, origin_name, origin_lat, origin_lng,
+                         destination_name, destination_lat, destination_lng,
+                         departure_date, available_weight, available_volume,
+                         trip_type, status, description)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      driverId,
+      tripData.truck_id,
+      tripData.origin_name,
+      tripData.origin_lat ?? null,
+      tripData.origin_lng ?? null,
+      tripData.destination_name,
+      tripData.destination_lat ?? null,
+      tripData.destination_lng ?? null,
+      tripData.departure_date,
+      tripData.available_weight,
+      tripData.available_volume ?? null,
+      tripData.trip_type || 'RETURN',
+      tripData.status || 'PUBLISHED',
+      tripData.description || null
+    );
+
+    return result.lastInsertRowid;
+  },
+
+  findByDriverId(driverId) {
+    const stmt = db.prepare(`
+      SELECT id, driver_id, truck_id, origin_name, origin_lat, origin_lng,
+             destination_name, destination_lat, destination_lng,
+             departure_date, available_weight, available_volume,
+             trip_type, status, description, created_at, updated_at
+      FROM trips
+      WHERE driver_id = ?
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(driverId);
+  },
+
+  findById(id) {
+    const stmt = db.prepare(`
+      SELECT id, driver_id, truck_id, origin_name, origin_lat, origin_lng,
+             destination_name, destination_lat, destination_lng,
+             departure_date, available_weight, available_volume,
+             trip_type, status, description, created_at, updated_at
+      FROM trips
+      WHERE id = ?
+    `);
+    return stmt.get(id);
+  },
+
+  update(id, tripData) {
+    const stmt = db.prepare(`
+      UPDATE trips
+      SET truck_id = ?, origin_name = ?, origin_lat = ?, origin_lng = ?,
+          destination_name = ?, destination_lat = ?, destination_lng = ?,
+          departure_date = ?, available_weight = ?, available_volume = ?,
+          description = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    const result = stmt.run(
+      tripData.truck_id,
+      tripData.origin_name,
+      tripData.origin_lat ?? null,
+      tripData.origin_lng ?? null,
+      tripData.destination_name,
+      tripData.destination_lat ?? null,
+      tripData.destination_lng ?? null,
+      tripData.departure_date,
+      tripData.available_weight,
+      tripData.available_volume ?? null,
+      tripData.description || null,
+      id
+    );
+
+    return result.changes > 0;
+  },
+
+  updateStatus(id, status) {
+    const stmt = db.prepare(`
+      UPDATE trips
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    const result = stmt.run(status, id);
+    return result.changes > 0;
+  },
+
+  delete(id) {
+    const stmt = db.prepare(`DELETE FROM trips WHERE id = ?`);
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+};
+
+// Cargaison model functions
+const CargaisonModel = {
+  create(driverId, data) {
+    const stmt = db.prepare(`
+      INSERT INTO cargaisons (driver_id, trip_id, origin_name, destination_name, cargo_type, weight, description, status, customer_name, customer_phone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      driverId,
+      data.trip_id || null,
+      data.origin_name,
+      data.destination_name,
+      data.cargo_type,
+      data.weight,
+      data.description || null,
+      data.status || 'AVAILABLE',
+      data.customer_name || null,
+      data.customer_phone || null
+    );
+
+    return result.lastInsertRowid;
+  },
+
+  findByDriverId(driverId) {
+    const stmt = db.prepare(`
+      SELECT id, driver_id, trip_id, origin_name, destination_name, cargo_type,
+             weight, description, status, customer_name, customer_phone,
+             created_at, updated_at
+      FROM cargaisons
+      WHERE driver_id = ?
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(driverId);
+  },
+
+  findById(id) {
+    const stmt = db.prepare(`
+      SELECT id, driver_id, trip_id, origin_name, destination_name, cargo_type,
+             weight, description, status, customer_name, customer_phone,
+             created_at, updated_at
+      FROM cargaisons
+      WHERE id = ?
+    `);
+    return stmt.get(id);
+  },
+
+  update(id, data) {
+    const stmt = db.prepare(`
+      UPDATE cargaisons
+      SET origin_name = ?, destination_name = ?, cargo_type = ?, weight = ?,
+          description = ?, customer_name = ?, customer_phone = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    const result = stmt.run(
+      data.origin_name,
+      data.destination_name,
+      data.cargo_type,
+      data.weight,
+      data.description || null,
+      data.customer_name || null,
+      data.customer_phone || null,
+      id
+    );
+
+    return result.changes > 0;
+  },
+
+  updateStatus(id, status, tripId) {
+    let stmt;
+    if (tripId !== undefined) {
+      stmt = db.prepare(`
+        UPDATE cargaisons
+        SET status = ?, trip_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+      const result = stmt.run(status, tripId, id);
+      return result.changes > 0;
+    }
+    stmt = db.prepare(`
+      UPDATE cargaisons
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    const result = stmt.run(status, id);
+    return result.changes > 0;
+  },
+
+  delete(id) {
+    const stmt = db.prepare(`DELETE FROM cargaisons WHERE id = ?`);
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+};
+
+module.exports = { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel };

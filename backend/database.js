@@ -57,6 +57,52 @@ function initializeDatabase() {
     )
   `);
 
+  // Trips table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trips (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      driver_id INTEGER NOT NULL,
+      truck_id INTEGER NOT NULL,
+      origin_name TEXT NOT NULL,
+      origin_lat REAL,
+      origin_lng REAL,
+      destination_name TEXT NOT NULL,
+      destination_lat REAL,
+      destination_lng REAL,
+      departure_date TEXT NOT NULL,
+      available_weight REAL NOT NULL,
+      available_volume REAL,
+      trip_type TEXT NOT NULL CHECK(trip_type IN ('RETURN')),
+      status TEXT NOT NULL DEFAULT 'PUBLISHED' CHECK(status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')),
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (truck_id) REFERENCES trucks(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Cargaisons table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cargaisons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      driver_id INTEGER NOT NULL,
+      trip_id INTEGER,
+      origin_name TEXT NOT NULL,
+      destination_name TEXT NOT NULL,
+      cargo_type TEXT NOT NULL,
+      weight REAL NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'AVAILABLE' CHECK(status IN ('AVAILABLE', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED')),
+      customer_name TEXT,
+      customer_phone TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE SET NULL
+    )
+  `);
+
   console.log('✓ Database tables initialized');
 }
 
