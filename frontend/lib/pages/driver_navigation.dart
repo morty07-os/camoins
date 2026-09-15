@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'driver_home_page.dart';
 import 'driver_trucks_page.dart';
+import 'driver_return_trips_page.dart';
 import 'profile_page.dart';
 
 class DriverNavigation extends ConsumerWidget {
@@ -29,6 +30,11 @@ class DriverNavigation extends ConsumerWidget {
             label: 'Mes camions',
           ),
           NavigationDestination(
+            icon: Icon(Icons.route_outlined),
+            selectedIcon: Icon(Icons.route_rounded),
+            label: 'Mes trajets retour',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(Icons.person_rounded),
             label: 'Profil',
@@ -43,6 +49,8 @@ class DriverNavigation extends ConsumerWidget {
       return const DriverHomePage();
     } else if (path.contains('/driver-trucks')) {
       return const DriverTrucksPage();
+    } else if (path.contains('/driver-trips')) {
+      return const DriverReturnTripsPage();
     } else if (path.contains('/driver-profile')) {
       return const ProfilePage();
     }
@@ -54,8 +62,10 @@ class DriverNavigation extends ConsumerWidget {
       return 0;
     } else if (path.contains('/driver-trucks')) {
       return 1;
-    } else if (path.contains('/driver-profile')) {
+    } else if (path.contains('/driver-trips')) {
       return 2;
+    } else if (path.contains('/driver-profile')) {
+      return 3;
     }
     return 0;
   }
@@ -69,6 +79,9 @@ class DriverNavigation extends ConsumerWidget {
         GoRouter.of(context).go('/driver-trucks');
         break;
       case 2:
+        GoRouter.of(context).go('/driver-trips');
+        break;
+      case 3:
         GoRouter.of(context).go('/driver-profile');
         break;
     }

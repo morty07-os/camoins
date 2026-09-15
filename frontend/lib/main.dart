@@ -9,6 +9,9 @@ import 'pages/driver_navigation.dart';
 import 'pages/add_truck_page.dart';
 import 'pages/edit_truck_page.dart';
 import 'pages/truck_details_page.dart';
+import 'pages/publish_return_trip_page.dart';
+import 'pages/edit_return_trip_page.dart';
+import 'pages/return_trip_details_page.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
 
@@ -63,7 +66,8 @@ class BackhaulApp extends ConsumerWidget {
         final isDriverRoute = location.startsWith('/driver') ||
             location.startsWith('/add-truck') ||
             location.startsWith('/edit-truck') ||
-            location.startsWith('/driver-truck');
+            location.startsWith('/edit-return-trip') ||
+            location.startsWith('/publish-return-trip');
 
         // A customer must not access driver (truck management) screens
         if (isAuthenticated && user?.isCustomer == true && isDriverRoute) {
@@ -97,6 +101,28 @@ class BackhaulApp extends ConsumerWidget {
         GoRoute(
           path: '/driver-profile',
           builder: (context, state) => const DriverNavigation(),
+        ),
+        GoRoute(
+          path: '/driver-trips',
+          builder: (context, state) => const DriverNavigation(),
+        ),
+        GoRoute(
+          path: '/publish-return-trip',
+          builder: (context, state) => const PublishReturnTripPage(),
+        ),
+        GoRoute(
+          path: '/edit-return-trip/:id',
+          builder: (context, state) {
+            final tripId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+            return EditReturnTripPage(tripId: tripId);
+          },
+        ),
+        GoRoute(
+          path: '/driver-return-trip-details/:id',
+          builder: (context, state) {
+            final tripId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+            return ReturnTripDetailsPage(tripId: tripId);
+          },
         ),
         GoRoute(
           path: '/add-truck',

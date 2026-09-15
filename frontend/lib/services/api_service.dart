@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user.dart';
 import '../models/truck.dart';
+import '../models/trip.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -297,6 +298,237 @@ class ApiService {
       };
     }
   }
+
+  Future<Map<String, dynamic>> getMyTrips() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/trips/my'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'trips': (data['trips'] as List? ?? [])
+              .map((trip) => Trip.fromJson(trip))
+              .toList(),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to get trips',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> getTrip(int id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/trips/$id'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'trip': Trip.fromJson(data['trip']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to get trip',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> createTrip({
+    required int truckId,
+    required String originName,
+    double? originLat,
+    double? originLng,
+    required String destinationName,
+    double? destinationLat,
+    double? destinationLng,
+    required String departureDate,
+    required double availableWeight,
+    double? availableVolume,
+    String tripType = 'RETURN',
+    String description = '',
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/trips'),
+        headers: await _authHeaders(),
+        body: jsonEncode({
+          'truck_id': truckId,
+          'origin_name': originName,
+          'origin_lat': originLat,
+          'origin_lng': originLng,
+          'destination_name': destinationName,
+          'destination_lat': destinationLat,
+          'destination_lng': destinationLng,
+          'departure_date': departureDate,
+          'available_weight': availableWeight,
+          'available_volume': availableVolume,
+          'trip_type': tripType,
+          'description': description,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 201 && data['success'] == true) {
+        return {
+          'success': true,
+          'trip': Trip.fromJson(data['trip']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to create trip',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> updateTrip(
+    int id, {
+    required int truckId,
+    required String originName,
+    double? originLat,
+    double? originLng,
+    required String destinationName,
+    double? destinationLat,
+    double? destinationLng,
+    required String departureDate,
+    required double availableWeight,
+    double? availableVolume,
+    String description = '',
+  }) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/trips/$id'),
+        headers: await _authHeaders(),
+        body: jsonEncode({
+          'truck_id': truckId,
+          'origin_name': originName,
+          'origin_lat': originLat,
+          'origin_lng': originLng,
+          'destination_name': destinationName,
+          'destination_lat': destinationLat,
+          'destination_lng': destinationLng,
+          'departure_date': departureDate,
+          'available_weight': availableWeight,
+          'available_volume': availableVolume,
+          'description': description,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'trip': Trip.fromJson(data['trip']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to update trip',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteTrip(int id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/trips/$id'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to delete trip',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _tripAction(int id, String action) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/trips/$id/$action'),
+        headers: await _authHeaders(),
+        body: jsonEncode({}),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'trip': Trip.fromJson(data['trip']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Action failed',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> startTrip(int id) => _tripAction(id, 'start');
+
+  Future<Map<String, dynamic>> completeTrip(int id) =>
+      _tripAction(id, 'complete');
+
+  Future<Map<String, dynamic>> cancelTrip(int id) =>
+      _tripAction(id, 'cancel');
 
   Future<Map<String, dynamic>> updateProfile({
     required String token,

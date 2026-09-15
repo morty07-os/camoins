@@ -77,4 +77,13 @@ void main() {
     expect(find.text('Déconnexion'), findsOneWidget);
     expect(find.text('Test Driver'), findsOneWidget);
   });
+
+  testWidgets('Driver can navigate to My Return Trips tab', (tester) async {
+    await pumpAuthenticatedApp(tester);
+
+    await tester.tap(find.text('Mes trajets retour'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Publier le trajet'), findsOneWidget);
+  });
 }

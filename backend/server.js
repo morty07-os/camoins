@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { UserModel, ProfileModel, TruckModel } = require('./models');
+const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel } = require('./models');
 const { generateToken, authMiddleware } = require('./auth');
 
 const app = express();
@@ -536,8 +536,567 @@ app.delete('/api/trucks/:id', authMiddleware, isDriverMiddleware, (req, res) => 
   }
 });
 
+// Trip type validation
+const VALID_TRIP_TYPES = ['RETURN'];
+const VALID_TRIP_STATUSES = ['PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
+
+// Validate and normalize a trip payload shared by create & update
+function buildTripData(body) {
+  const {
+    truck_id,
+    origin_name,
+    origin_lat,
+    origin_lng,
+    destination_name,
+    destination_lat,
+    destination_lng,
+    departure_date,
+    available_weight,
+    available_volume,
+    trip_type,
+    description
+  } = body;
+
+  if (!truck_id) {
+    return { error: 'A truck must be selected' };
+  }
+  if (!origin_name || typeof origin_name !== 'string' || !origin_name.trim()) {
+    return { error: 'Origin is required' };
+  }
+  if (!destination_name || typeof destination_name !== 'string' || !destination_name.trim()) {
+    return { error: 'Destination is required' };
+  }
+  if (origin_name.trim().toLowerCase() === destination_name.trim().toLowerCase()) {
+    return { error: 'Origin and destination must be different' };
+  }
+  if (!departure_date) {
+    return { error: 'Departure date is required' };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(departure_date)) {
+    return { error: 'Departure date must be in YYYY-MM-DD format' };
+  }
+  if (typeof available_weight !== 'number' || available_weight <= 0) {
+    return { error: 'Available weight must be a positive number' };
+  }
+  if (available_volume !== undefined && available_volume !== null &&
+      (typeof available_volume !== 'number' || available_volume <= 0)) {
+    return { error: 'Available volume must be a positive number' };
+  }
+  if (trip_type !== undefined && !VALID_TRIP_TYPES.includes(trip_type)) {
+    return { error: 'Invalid trip type' };
+  }
+
+  const isValidCoordPair = (lat, lng) => {
+    const hasLat = lat !== undefined && lat !== null;
+    const hasLng = lng !== undefined && lng !== null;
+    if (hasLat !== hasLng) {
+      return false;
+    }
+    if (!hasLat) {
+      return true;
+    }
+    return (
+      typeof lat === 'number' &&
+      typeof lng === 'number' &&
+      lat >= -90 && lat <= 90 &&
+      lng >= -180 && lng <= 180
+    );
+  };
+  if (!isValidCoordPair(origin_lat, origin_lng)) {
+    return { error: 'Origin latitude and longitude must both be provided and valid' };
+  }
+  if (!isValidCoordPair(destination_lat, destination_lng)) {
+    return { error: 'Destination latitude and longitude must both be provided and valid' };
+  }
+
+  return {
+    data: {
+      truck_id,
+      origin_name: origin_name.trim(),
+      origin_lat: origin_lat ?? null,
+      origin_lng: origin_lng ?? null,
+      destination_name: destination_name.trim(),
+      destination_lat: destination_lat ?? null,
+      destination_lng: destination_lng ?? null,
+      departure_date,
+      available_weight,
+      available_volume: available_volume ?? null,
+      trip_type: trip_type || 'RETURN',
+      description: description || null
+    }
+  };
+}
+
+// Check that the selected truck exists and belongs to the current driver
+function getOwnedTruck(req, res, truckId) {
+  if (typeof truckId !== 'number' || !Number.isInteger(truckId)) {
+    res.status(400).json({ success: false, message: 'Invalid truck ID' });
+    return null;
+  }
+  const truck = TruckModel.findById(truckId);
+  if (!truck) {
+    res.status(400).json({ success: false, message: 'Selected truck was not found' });
+    return null;
+  }
+  if (truck.driver_id !== req.user.id) {
+    res.status(403).json({ success: false, message: 'Selected truck does not belong to you' });
+    return null;
+  }
+  return truck;
+}
+
+// Load a trip by :id and check ownership against the current driver
+function getOwnedTrip(req, res) {
+  const tripId = parseInt(req.params.id);
+  if (isNaN(tripId)) {
+    res.status(400).json({ success: false, message: 'Invalid trip ID' });
+    return null;
+  }
+  const trip = TripModel.findById(tripId);
+  if (!trip) {
+    res.status(404).json({ success: false, message: 'Trip not found' });
+    return null;
+  }
+  if (trip.driver_id !== req.user.id) {
+    res.status(403).json({ success: false, message: 'You do not have permission to access this trip' });
+    return null;
+  }
+  return trip;
+}
+
+// Get all trips for the current driver
+app.get('/api/trips/my', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const trips = TripModel.findByDriverId(req.user.id);
+    res.json({
+      success: true,
+      trips
+    });
+  } catch (error) {
+    console.error('Get trips error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Create a new return trip
+app.post('/api/trips', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const { data, error } = buildTripData(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error });
+    }
+
+    // The selected truck must belong to the driver
+    if (!getOwnedTruck(req, res, data.truck_id)) {
+      return;
+    }
+
+    const tripId = TripModel.create(req.user.id, data);
+    const trip = TripModel.findById(tripId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Return trip published successfully',
+      trip
+    });
+  } catch (error) {
+    console.error('Create trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Get a specific trip
+app.get('/api/trips/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const trip = getOwnedTrip(req, res);
+    if (!trip) {
+      return;
+    }
+
+    res.json({
+      success: true,
+      trip
+    });
+  } catch (error) {
+    console.error('Get trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Update a trip
+app.put('/api/trips/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const trip = getOwnedTrip(req, res);
+    if (!trip) {
+      return;
+    }
+
+    const { data, error } = buildTripData(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error });
+    }
+
+    // The selected truck must belong to the driver
+    if (!getOwnedTruck(req, res, data.truck_id)) {
+      return;
+    }
+
+    const updated = TripModel.update(trip.id, data);
+    if (!updated) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update trip'
+      });
+    }
+
+    const updatedTrip = TripModel.findById(trip.id);
+
+    res.json({
+      success: true,
+      message: 'Return trip updated successfully',
+      trip: updatedTrip
+    });
+  } catch (error) {
+    console.error('Update trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Delete a trip
+app.delete('/api/trips/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const trip = getOwnedTrip(req, res);
+    if (!trip) {
+      return;
+    }
+
+    const deleted = TripModel.delete(trip.id);
+    if (!deleted) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete trip'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Return trip deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Start a trip (PUBLISHED -> IN_PROGRESS)
+app.post('/api/trips/:id/start', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const trip = getOwnedTrip(req, res);
+    if (!trip) {
+      return;
+    }
+
+    if (trip.status !== 'PUBLISHED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only published trips can be started'
+      });
+    }
+
+    TripModel.updateStatus(trip.id, 'IN_PROGRESS');
+    const updatedTrip = TripModel.findById(trip.id);
+
+    res.json({
+      success: true,
+      message: 'Return trip started successfully',
+      trip: updatedTrip
+    });
+  } catch (error) {
+    console.error('Start trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Complete a trip (IN_PROGRESS -> COMPLETED)
+app.post('/api/trips/:id/complete', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const trip = getOwnedTrip(req, res);
+    if (!trip) {
+      return;
+    }
+
+    if (trip.status !== 'IN_PROGRESS') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only in-progress trips can be completed'
+      });
+    }
+
+    TripModel.updateStatus(trip.id, 'COMPLETED');
+    const updatedTrip = TripModel.findById(trip.id);
+
+    res.json({
+      success: true,
+      message: 'Return trip completed successfully',
+      trip: updatedTrip
+    });
+  } catch (error) {
+    console.error('Complete trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Cancel a trip (PUBLISHED or IN_PROGRESS -> CANCELLED)
+app.post('/api/trips/:id/cancel', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const trip = getOwnedTrip(req, res);
+    if (!trip) {
+      return;
+    }
+
+    if (!['PUBLISHED', 'IN_PROGRESS'].includes(trip.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'This trip can no longer be cancelled'
+      });
+    }
+
+    TripModel.updateStatus(trip.id, 'CANCELLED');
+    const updatedTrip = TripModel.findById(trip.id);
+
+    res.json({
+      success: true,
+      message: 'Return trip cancelled successfully',
+      trip: updatedTrip
+    });
+  } catch (error) {
+    console.error('Cancel trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// ---- CARGAISONS (chargements) ROUTES ----
+
+// Get all cargaisons for the current driver
+app.get('/api/cargaisons/my', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const cargaisons = CargaisonModel.findByDriverId(req.user.id);
+    res.json({
+      success: true,
+      cargaisons
+    });
+  } catch (error) {
+    console.error('Get cargaisons error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Get a specific cargaison (owner check)
+function getOwnedCargaison(req, res) {
+  const cargaisonId = parseInt(req.params.id);
+  if (isNaN(cargaisonId)) {
+    res.status(400).json({ success: false, message: 'Invalid cargaison ID' });
+    return null;
+  }
+  const cargaison = CargaisonModel.findById(cargaisonId);
+  if (!cargaison) {
+    res.status(404).json({ success: false, message: 'Cargaison not found' });
+    return null;
+  }
+  if (cargaison.driver_id !== req.user.id) {
+    res.status(403).json({ success: false, message: 'You do not have permission to access this cargaison' });
+    return null;
+  }
+  return cargaison;
+}
+
+// Build & validate a cargaison payload
+function buildCargaisonData(body) {
+  const {
+    trip_id,
+    origin_name,
+    destination_name,
+    cargo_type,
+    weight,
+    description,
+    status,
+    customer_name,
+    customer_phone
+  } = body;
+
+  if (!origin_name || typeof origin_name !== 'string' || !origin_name.trim()) {
+    return { error: 'Origin is required' };
+  }
+  if (!destination_name || typeof destination_name !== 'string' || !destination_name.trim()) {
+    return { error: 'Destination is required' };
+  }
+  if (origin_name.trim().toLowerCase() === destination_name.trim().toLowerCase()) {
+    return { error: 'Origin and destination must be different' };
+  }
+  if (!cargo_type || typeof cargo_type !== 'string' || !cargo_type.trim()) {
+    return { error: 'Cargo type is required' };
+  }
+  if (typeof weight !== 'number' || weight <= 0) {
+    return { error: 'Weight must be a positive number' };
+  }
+
+  return {
+    data: {
+      trip_id: trip_id ?? null,
+      origin_name: origin_name.trim(),
+      destination_name: destination_name.trim(),
+      cargo_type: cargo_type.trim(),
+      weight,
+      description: description || null,
+      status: status || 'AVAILABLE',
+      customer_name: customer_name || null,
+      customer_phone: customer_phone || null
+    }
+  };
+}
+
+// Create a new cargaison
+app.post('/api/cargaisons', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const { data, error } = buildCargaisonData(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error });
+    }
+
+    const cargaisonId = CargaisonModel.create(req.user.id, data);
+    const cargaison = CargaisonModel.findById(cargaisonId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Cargaison created successfully',
+      cargaison
+    });
+  } catch (error) {
+    console.error('Create cargaison error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Get a specific cargaison
+app.get('/api/cargaisons/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const cargaison = getOwnedCargaison(req, res);
+    if (!cargaison) {
+      return;
+    }
+    res.json({ success: true, cargaison });
+  } catch (error) {
+    console.error('Get cargaison error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Update a cargaison
+app.put('/api/cargaisons/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const cargaison = getOwnedCargaison(req, res);
+    if (!cargaison) {
+      return;
+    }
+
+    const { data, error } = buildCargaisonData(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error });
+    }
+
+    const updated = CargaisonModel.update(cargaison.id, data);
+    if (!updated) {
+      return res.status(500).json({ success: false, message: 'Failed to update cargaison' });
+    }
+
+    const updatedCargaison = CargaisonModel.findById(cargaison.id);
+    res.json({ success: true, message: 'Cargaison updated successfully', cargaison: updatedCargaison });
+  } catch (error) {
+    console.error('Update cargaison error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Update cargaison status (assign to trip, start, complete, cancel)
+app.post('/api/cargaisons/:id/status', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const cargaison = getOwnedCargaison(req, res);
+    if (!cargaison) {
+      return;
+    }
+
+    const { status, trip_id } = req.body;
+    const VALID_STATUSES = ['AVAILABLE', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'];
+    if (!VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    CargaisonModel.updateStatus(cargaison.id, status, trip_id);
+    const updatedCargaison = CargaisonModel.findById(cargaison.id);
+
+    res.json({
+      success: true,
+      message: 'Cargaison status updated successfully',
+      cargaison: updatedCargaison
+    });
+  } catch (error) {
+    console.error('Update cargaison status error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Delete a cargaison
+app.delete('/api/cargaisons/:id', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const cargaison = getOwnedCargaison(req, res);
+    if (!cargaison) {
+      return;
+    }
+
+    const deleted = CargaisonModel.delete(cargaison.id);
+    if (!deleted) {
+      return res.status(500).json({ success: false, message: 'Failed to delete cargaison' });
+    }
+
+    res.json({ success: true, message: 'Cargaison deleted successfully' });
+  } catch (error) {
+    console.error('Delete cargaison error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`✓ Backend server running on http://localhost:${PORT}`);
   console.log(`✓ Health check: http://localhost:${PORT}/api/health`);
   console.log(`✓ API endpoints:`);
@@ -545,4 +1104,16 @@ app.listen(PORT, () => {
   console.log(`  POST /api/auth/login`);
   console.log(`  GET  /api/auth/me`);
   console.log(`  PUT  /api/profile`);
+  console.log(`  POST /api/cargaisons`);
+  console.log(`  GET  /api/cargaisons/my`);
+  console.log(`  GET  /api/cargaisons/:id`);
+  console.log(`  PUT  /api/cargaisons/:id`);
+  console.log(`  POST /api/cargaisons/:id/status`);
+  console.log(`  DELETE /api/cargaisons/:id`);
+  console.log(`  POST /api/trips`);
+  console.log(`  GET  /api/trips/my`);
+  console.log(`  GET  /api/trips/:id`);
+  console.log(`  PUT  /api/trips/:id`);
+  console.log(`  DELETE /api/trips/:id`);
+  console.log(`  POST /api/trips/:id/start | complete | cancel`);
 });

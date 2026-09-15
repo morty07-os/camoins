@@ -58,7 +58,7 @@ class DriverHomePage extends ConsumerWidget {
             icon: Icons.add_road_rounded,
             title: 'Proposer un trajet',
             subtitle: 'Publiez votre itinéraire et vos disponibilités',
-            onTap: () => _comingSoon(context),
+            onTap: () => GoRouter.of(context).go('/driver-trips'),
           ),
           const SizedBox(height: 12),
           _QuickAction(
