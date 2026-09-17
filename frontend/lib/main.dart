@@ -15,7 +15,6 @@ import 'pages/return_trip_details_page.dart';
 import 'pages/trip_search_page.dart';
 import 'pages/trip_search_results_page.dart';
 import 'pages/search_trip_details_page.dart';
-import 'models/search_result.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
 
@@ -165,14 +164,10 @@ class BackhaulApp extends ConsumerWidget {
           path: '/search-trip-details/:id',
           builder: (context, state) {
             final tripId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
-            final result = state.extra is Map<String, dynamic>
-                ? (state.extra as Map<String, dynamic>)
-                : null;
+            final result = state.extra;
             return SearchTripDetailsPage(
               tripId: tripId,
-              initialResult: result != null
-                  ? TripSearchResult.fromJson(result)
-                  : null,
+              initialResult: result,
             );
           },
         ),
