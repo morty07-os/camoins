@@ -34,9 +34,7 @@ class _DriverTrucksPageState extends ConsumerState<DriverTrucksPage> {
       final apiService = ApiService();
       final response = await apiService.getMyTrucks();
       if (response['success'] == true) {
-        final trucks = (response['trucks'] as List)
-            .map((truck) => Truck.fromJson(truck))
-            .toList();
+        final trucks = (response['trucks'] as List).cast<Truck>();
         if (mounted) {
           setState(() {
             _trucks = trucks;
