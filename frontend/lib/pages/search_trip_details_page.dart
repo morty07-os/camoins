@@ -7,7 +7,7 @@ import '../widgets/status_badge.dart';
 
 class SearchTripDetailsPage extends StatelessWidget {
   final int tripId;
-  final TripSearchResult? initialResult;
+  final dynamic initialResult;
 
   const SearchTripDetailsPage({
     super.key,
@@ -17,14 +17,27 @@ class SearchTripDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (initialResult == null) {
+    // Parse initialResult if it's a Map (from navigation extra)
+    TripSearchResult? result;
+    try {
+      if (initialResult != null) {
+        if (initialResult is TripSearchResult) {
+          result = initialResult as TripSearchResult;
+        } else if (initialResult is Map<String, dynamic>) {
+          result = TripSearchResult.fromJson(initialResult);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error parsing trip result: $e');
+    }
+
+    if (result == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Détails du trajet')),
         body: const Center(child: Text('Trajet non disponible')),
       );
     }
 
-    final result = initialResult!;
     final trip = result.trip;
     final driver = result.driver;
     final truck = result.truck;
