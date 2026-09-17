@@ -34,9 +34,7 @@ class _DriverReturnTripsPageState extends ConsumerState<DriverReturnTripsPage> {
       final apiService = ApiService();
       final response = await apiService.getMyTrips();
       if (response['success'] == true) {
-        final trips = (response['trips'] as List)
-            .map((trip) => Trip.fromJson(trip))
-            .toList();
+        final trips = (response['trips'] as List).cast<Trip>();
         if (mounted) {
           setState(() {
             _trips = trips;

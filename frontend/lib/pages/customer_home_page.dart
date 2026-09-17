@@ -106,17 +106,17 @@ class CustomerHomePage extends ConsumerWidget {
                       color: AppColors.accentSoft,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(
-                          Icons.info_outline_rounded,
+                        const Icon(
+                          Icons.check_circle_rounded,
                           size: 18,
                           color: AppColors.accent,
                         ),
-                        SizedBox(width: 8),
-                        Expanded(
+                        const SizedBox(width: 8),
+                        const Expanded(
                           child: Text(
-                            'Cette fonctionnalité arrive bientôt',
+                            'Recherchez les trajets disponibles',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -126,6 +126,12 @@ class CustomerHomePage extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => context.push('/search-trips'),
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Rechercher un trajet'),
                   ),
                 ],
               ),

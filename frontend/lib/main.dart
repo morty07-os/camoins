@@ -12,6 +12,10 @@ import 'pages/truck_details_page.dart';
 import 'pages/publish_return_trip_page.dart';
 import 'pages/edit_return_trip_page.dart';
 import 'pages/return_trip_details_page.dart';
+import 'pages/trip_search_page.dart';
+import 'pages/trip_search_results_page.dart';
+import 'pages/search_trip_details_page.dart';
+import 'models/search_result.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
 
@@ -145,6 +149,32 @@ class BackhaulApp extends ConsumerWidget {
         GoRoute(
           path: '/customer-home',
           builder: (context, state) => const CustomerHomePage(),
+        ),
+        GoRoute(
+          path: '/search-trips',
+          builder: (context, state) => const TripSearchPage(),
+        ),
+        GoRoute(
+          path: '/search-results',
+          builder: (context, state) {
+            final results = state.extra as List? ?? [];
+            return TripSearchResultsPage(results: results);
+          },
+        ),
+        GoRoute(
+          path: '/search-trip-details/:id',
+          builder: (context, state) {
+            final tripId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+            final result = state.extra is Map<String, dynamic>
+                ? (state.extra as Map<String, dynamic>)
+                : null;
+            return SearchTripDetailsPage(
+              tripId: tripId,
+              initialResult: result != null
+                  ? TripSearchResult.fromJson(result)
+                  : null,
+            );
+          },
         ),
         GoRoute(
           path: '/profile',
