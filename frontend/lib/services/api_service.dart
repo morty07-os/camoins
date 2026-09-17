@@ -572,4 +572,52 @@ class ApiService {
       };
     }
   }
+
+  Future<Map<String, dynamic>> searchTrips({
+    double? originLat,
+    double? originLng,
+    double? destinationLat,
+    double? destinationLng,
+    required String date,
+    required double requiredWeight,
+    double? requiredVolume,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/search/trips').replace(
+        queryParameters: {
+          if (originLat != null) 'origin_lat': originLat.toString(),
+          if (originLng != null) 'origin_lng': originLng.toString(),
+          if (destinationLat != null) 'destination_lat': destinationLat.toString(),
+          if (destinationLng != null) 'destination_lng': destinationLng.toString(),
+          'date': date,
+          'required_weight': requiredWeight.toString(),
+          if (requiredVolume != null) 'required_volume': requiredVolume.toString(),
+        },
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'trips': data['trips'] as List? ?? [],
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to search trips',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
 }

@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const db = require('./database');
 const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel } = require('./models');
 const { generateToken, authMiddleware } = require('./auth');
 
@@ -1092,6 +1093,195 @@ app.delete('/api/cargaisons/:id', authMiddleware, isDriverMiddleware, (req, res)
   } catch (error) {
     console.error('Delete cargaison error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// ---- SEARCH ENDPOINTS ----
+
+// Calculate distance between two geographic points (Haversine formula)
+function calculateDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Score a trip match based on origin, destination, date, and capacity
+function scoreTrip(trip, originLat, originLng, destLat, destLng, date, reqWeight, reqVolume) {
+  let score = 0;
+
+  // Origin proximity (30 points)
+  // If coordinates provided, use distance; otherwise use city name match
+  let originScore = 0;
+  if (originLat !== null && originLng !== null && trip.origin_lat !== null && trip.origin_lng !== null) {
+    const distOrigin = calculateDistance(originLat, originLng, trip.origin_lat, trip.origin_lng);
+    if (distOrigin < 5) {
+      originScore = 30; // Within 5km = exact match
+    } else if (distOrigin < 50) {
+      originScore = 20; // Within 50km = nearby
+    } else if (distOrigin < 150) {
+      originScore = 10; // Within 150km = acceptable
+    }
+  }
+  score += originScore;
+
+  // Destination proximity (30 points)
+  let destScore = 0;
+  if (destLat !== null && destLng !== null && trip.destination_lat !== null && trip.destination_lng !== null) {
+    const distDest = calculateDistance(destLat, destLng, trip.destination_lat, trip.destination_lng);
+    if (distDest < 5) {
+      destScore = 30;
+    } else if (distDest < 50) {
+      destScore = 20;
+    } else if (distDest < 150) {
+      destScore = 10;
+    }
+  }
+  score += destScore;
+
+  // Date compatibility (20 points)
+  if (trip.departure_date === date) {
+    score += 20; // Exact date match
+  } else {
+    // Check if dates are close (within 3 days)
+    const tripDate = new Date(trip.departure_date);
+    const searchDate = new Date(date);
+    const dayDiff = Math.abs((tripDate - searchDate) / (1000 * 60 * 60 * 24));
+    if (dayDiff <= 3) {
+      score += 10;
+    }
+  }
+
+  // Weight compatibility (10 points)
+  if (trip.available_weight >= reqWeight) {
+    score += 10;
+  }
+
+  // Volume compatibility (10 points)
+  if (reqVolume === null || trip.available_volume === null || trip.available_volume >= reqVolume) {
+    score += 10;
+  }
+
+  return score;
+}
+
+// Search available trips (customer search)
+app.get('/api/search/trips', async (req, res) => {
+  try {
+    const {
+      origin_lat,
+      origin_lng,
+      destination_lat,
+      destination_lng,
+      date,
+      required_weight,
+      required_volume
+    } = req.query;
+
+    // Validate required parameters
+    if (!date || !required_weight) {
+      return res.status(400).json({
+        success: false,
+        message: 'Date and required weight are required'
+      });
+    }
+
+    const reqWeight = parseFloat(required_weight);
+    const reqVolume = required_volume ? parseFloat(required_volume) : null;
+    const originLat = origin_lat ? parseFloat(origin_lat) : null;
+    const originLng = origin_lng ? parseFloat(origin_lng) : null;
+    const destLat = destination_lat ? parseFloat(destination_lat) : null;
+    const destLng = destination_lng ? parseFloat(destination_lng) : null;
+
+    if (isNaN(reqWeight) || reqWeight <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Required weight must be a positive number'
+      });
+    }
+
+    if (reqVolume !== null && isNaN(reqVolume)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Required volume must be a valid number'
+      });
+    }
+
+    // Get all published trips
+    const stmt = db.prepare(`
+      SELECT t.*, u.email, u.role, p.full_name, p.rating, p.rating_count
+      FROM trips t
+      JOIN users u ON t.driver_id = u.id
+      JOIN profiles p ON u.id = p.user_id
+      WHERE t.status = 'PUBLISHED'
+        AND t.departure_date >= ?
+        AND t.available_weight >= ?
+      ORDER BY t.created_at DESC
+    `);
+
+    const trips = stmt.all(date, reqWeight);
+
+    // Score and filter trips
+    const scoredTrips = trips
+      .map(trip => ({
+        ...trip,
+        matchScore: scoreTrip(trip, originLat, originLng, destLat, destLng, date, reqWeight, reqVolume)
+      }))
+      .filter(trip => trip.matchScore > 0)
+      .sort((a, b) => b.matchScore - a.matchScore);
+
+    // Get truck details for each trip
+    const enrichedTrips = scoredTrips.map(trip => {
+      const truckStmt = db.prepare('SELECT * FROM trucks WHERE id = ?');
+      const truck = truckStmt.get(trip.truck_id);
+      return {
+        trip: {
+          id: trip.id,
+          driver_id: trip.driver_id,
+          truck_id: trip.truck_id,
+          origin_name: trip.origin_name,
+          origin_lat: trip.origin_lat,
+          origin_lng: trip.origin_lng,
+          destination_name: trip.destination_name,
+          destination_lat: trip.destination_lat,
+          destination_lng: trip.destination_lng,
+          departure_date: trip.departure_date,
+          available_weight: trip.available_weight,
+          available_volume: trip.available_volume,
+          trip_type: trip.trip_type,
+          status: trip.status,
+          description: trip.description,
+          created_at: trip.created_at,
+          updated_at: trip.updated_at,
+        },
+        driver: {
+          id: trip.driver_id,
+          email: trip.email,
+          full_name: trip.full_name,
+          rating: trip.rating,
+          rating_count: trip.rating_count,
+        },
+        truck: truck,
+        matchScore: trip.matchScore,
+      };
+    });
+
+    res.json({
+      success: true,
+      count: enrichedTrips.length,
+      trips: enrichedTrips
+    });
+  } catch (error) {
+    console.error('Search trips error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
   }
 });
 
