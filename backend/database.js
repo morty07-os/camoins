@@ -103,6 +103,26 @@ function initializeDatabase() {
     )
   `);
 
+  // Transport requests table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS transport_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trip_id INTEGER NOT NULL,
+      customer_id INTEGER NOT NULL,
+      requested_weight REAL NOT NULL,
+      requested_volume REAL,
+      cargo_description TEXT,
+      pickup_location TEXT,
+      delivery_location TEXT,
+      agreed_price TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'COMPLETED')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+      FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log('✓ Database tables initialized');
 }
 

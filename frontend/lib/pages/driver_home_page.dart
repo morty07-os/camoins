@@ -67,6 +67,13 @@ class DriverHomePage extends ConsumerWidget {
             subtitle: 'Ajoutez, modifiez ou retirez vos camions',
             onTap: () => GoRouter.of(context).go('/driver-trucks'),
           ),
+          const SizedBox(height: 12),
+          _QuickAction(
+            icon: Icons.inbox_rounded,
+            title: 'Mes demandes',
+            subtitle: 'Consultez les demandes de vos clients',
+            onTap: () => GoRouter.of(context).go('/driver-requests'),
+          ),
           const SizedBox(height: 24),
           const SectionTitle(
             title: 'Mes informations',

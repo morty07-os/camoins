@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../models/search_result.dart';
+import '../models/trip.dart';
 import '../theme/app_theme.dart';
 import '../widgets/info_row.dart';
 import '../widgets/section_title.dart';
@@ -310,37 +312,14 @@ class SearchTripDetailsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            // Call-to-action (disabled for now)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.accentSoft,
-                borderRadius: BorderRadius.circular(AppTheme.radius),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    size: 18,
-                    color: AppColors.accent,
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'La demande de transport sera disponible prochainement',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+            // Call-to-action
             FilledButton.icon(
-              onPressed: null,
+              onPressed: () {
+                context.push(
+                  '/request-form/${trip.id}',
+                  extra: trip,
+                );
+              },
               icon: const Icon(Icons.add_rounded),
               label: const Text('Demander ce transport'),
             ),
