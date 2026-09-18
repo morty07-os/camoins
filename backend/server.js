@@ -1,11 +1,20 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
+const socketIo = require('socket.io');
 const db = require('./database');
-const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel } = require('./models');
-const { generateToken, authMiddleware } = require('./auth');
+const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel } = require('./models');
+const { generateToken, authMiddleware, verifyToken } = require('./auth');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
 const PORT = process.env.PORT || 5000;
 
 // Middleware
@@ -1529,11 +1538,19 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
       const updatedRequest = TransportRequestModel.findById(requestId);
       const updatedTrip = TripModel.findById(request.trip_id);
 
+      // Create conversation for chat
+      let conversation = ConversationModel.findByRequestId(requestId);
+      if (!conversation) {
+        const conversationId = ConversationModel.create(requestId, trip.driver_id, request.customer_id);
+        conversation = ConversationModel.findById(conversationId);
+      }
+
       res.json({
         success: true,
         message: 'Transport request accepted',
         request: updatedRequest,
-        trip: updatedTrip
+        trip: updatedTrip,
+        conversation: conversation
       });
     } catch (error) {
       if (error.message.includes('Insufficient')) {
@@ -1710,8 +1727,328 @@ app.post('/api/requests/:id/complete', authMiddleware, isDriverMiddleware, (req,
   }
 });
 
+// ---- CONVERSATIONS & MESSAGES (Chat) ----
+
+// POST /api/conversations - Create a conversation (after request is accepted)
+app.post('/api/conversations', authMiddleware, (req, res) => {
+  try {
+    const { request_id } = req.body;
+
+    if (!request_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Request ID is required'
+      });
+    }
+
+    // Get request
+    const request = TransportRequestModel.findById(request_id);
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found'
+      });
+    }
+
+    // Request must be ACCEPTED
+    if (request.status !== 'ACCEPTED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Conversation can only be created for accepted requests'
+      });
+    }
+
+    // Get trip to find driver
+    const trip = TripModel.findById(request.trip_id);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Verify user is either driver or customer of this request
+    if (req.user.id !== trip.driver_id && req.user.id !== request.customer_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
+    // Check if conversation already exists
+    let conversation = ConversationModel.findByRequestId(request_id);
+    if (!conversation) {
+      // Create new conversation
+      const conversationId = ConversationModel.create(request_id, trip.driver_id, request.customer_id);
+      conversation = ConversationModel.findById(conversationId);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Conversation created',
+      conversation
+    });
+  } catch (error) {
+    console.error('Create conversation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/conversations - Get all conversations for current user
+app.get('/api/conversations', authMiddleware, (req, res) => {
+  try {
+    const conversations = ConversationModel.findByUserId(req.user.id);
+
+    // Enrich with last message and unread count
+    const enriched = conversations.map(conv => {
+      const lastMessage = MessageModel.getLastMessage(conv.id);
+      const unreadCount = MessageModel.getUnreadCount(conv.id, req.user.id);
+
+      return {
+        ...conv,
+        last_message: lastMessage,
+        unread_count: unreadCount.count
+      };
+    });
+
+    res.json({
+      success: true,
+      conversations: enriched
+    });
+  } catch (error) {
+    console.error('Get conversations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/conversations/:id/messages - Get messages for a conversation
+app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
+  try {
+    const conversationId = parseInt(req.params.id);
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // Verify user has access to conversation
+    const conversation = ConversationModel.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found'
+      });
+    }
+
+    if (req.user.id !== conversation.driver_id && req.user.id !== conversation.customer_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access to conversation'
+      });
+    }
+
+    // Mark all unread messages as read
+    MessageModel.markConversationAsRead(conversationId, req.user.id);
+
+    // Get messages
+    const messages = MessageModel.findByConversationId(conversationId, limit, offset);
+
+    res.json({
+      success: true,
+      messages
+    });
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/conversations/:id/messages - Send a message
+app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
+  try {
+    const conversationId = parseInt(req.params.id);
+    const { message } = req.body;
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message is required and must not be empty'
+      });
+    }
+
+    // Verify user has access to conversation
+    const conversation = ConversationModel.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found'
+      });
+    }
+
+    if (req.user.id !== conversation.driver_id && req.user.id !== conversation.customer_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access to conversation'
+      });
+    }
+
+    // Create message
+    const messageId = MessageModel.create(conversationId, req.user.id, message.trim());
+    const newMessage = MessageModel.findById(messageId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Message sent',
+      data: newMessage
+    });
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// PATCH /api/messages/:id/read - Mark message as read
+app.patch('/api/messages/:id/read', authMiddleware, (req, res) => {
+  try {
+    const messageId = parseInt(req.params.id);
+    const message = MessageModel.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    // Verify user has access to conversation
+    const conversation = ConversationModel.findById(message.conversation_id);
+    if (!conversation || (req.user.id !== conversation.driver_id && req.user.id !== conversation.customer_id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
+    // Mark as read
+    MessageModel.markAsRead(messageId);
+    const updatedMessage = MessageModel.findById(messageId);
+
+    res.json({
+      success: true,
+      message: 'Message marked as read',
+      data: updatedMessage
+    });
+  } catch (error) {
+    console.error('Mark message as read error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// ---- WebSocket (Socket.IO) ----
+
+// Middleware to verify socket connection
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) {
+    return next(new Error('Authentication error'));
+  }
+
+  try {
+    const decoded = verifyToken(token);
+    socket.userId = decoded.id;
+    socket.userRole = decoded.role;
+    next();
+  } catch (error) {
+    next(new Error('Invalid token'));
+  }
+});
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log(`✓ User ${socket.userId} connected`);
+
+  // Join conversation room
+  socket.on('join-conversation', (conversationId) => {
+    const conversation = ConversationModel.findById(conversationId);
+
+    // Verify access
+    if (!conversation || (socket.userId !== conversation.driver_id && socket.userId !== conversation.customer_id)) {
+      socket.emit('error', { message: 'Unauthorized' });
+      return;
+    }
+
+    socket.join(`conversation-${conversationId}`);
+    socket.conversationId = conversationId;
+    console.log(`✓ User ${socket.userId} joined conversation ${conversationId}`);
+  });
+
+  // Receive message
+  socket.on('send-message', (data) => {
+    try {
+      const { conversationId, message } = data;
+
+      if (!conversationId || !message) {
+        socket.emit('error', { message: 'Missing required fields' });
+        return;
+      }
+
+      // Verify access
+      const conversation = ConversationModel.findById(conversationId);
+      if (!conversation || (socket.userId !== conversation.driver_id && socket.userId !== conversation.customer_id)) {
+        socket.emit('error', { message: 'Unauthorized' });
+        return;
+      }
+
+      // Save message
+      const messageId = MessageModel.create(conversationId, socket.userId, message);
+      const newMessage = MessageModel.findById(messageId);
+
+      // Get sender profile
+      const sender = ProfileModel.findByUserId(socket.userId);
+
+      // Broadcast to conversation room
+      io.to(`conversation-${conversationId}`).emit('message-received', {
+        id: newMessage.id,
+        conversation_id: newMessage.conversation_id,
+        sender_id: newMessage.sender_id,
+        sender_name: sender?.full_name || 'Unknown',
+        message: newMessage.message,
+        created_at: newMessage.created_at,
+        read_at: newMessage.read_at
+      });
+    } catch (error) {
+      console.error('Send message error:', error);
+      socket.emit('error', { message: 'Failed to send message' });
+    }
+  });
+
+  // Leave conversation
+  socket.on('leave-conversation', (conversationId) => {
+    socket.leave(`conversation-${conversationId}`);
+    console.log(`✓ User ${socket.userId} left conversation ${conversationId}`);
+  });
+
+  // Disconnect
+  socket.on('disconnect', () => {
+    console.log(`✓ User ${socket.userId} disconnected`);
+  });
+});
+
+
 // Start server
-const server = app.listen(PORT, () => {
+const httpServer = server.listen(PORT, () => {
   console.log(`✓ Backend server running on http://localhost:${PORT}`);
   console.log(`✓ Health check: http://localhost:${PORT}/api/health`);
   console.log(`✓ API endpoints:`);
@@ -1731,4 +2068,10 @@ const server = app.listen(PORT, () => {
   console.log(`  PUT  /api/trips/:id`);
   console.log(`  DELETE /api/trips/:id`);
   console.log(`  POST /api/trips/:id/start | complete | cancel`);
+  console.log(`  POST /api/conversations`);
+  console.log(`  GET  /api/conversations`);
+  console.log(`  GET  /api/conversations/:id/messages`);
+  console.log(`  POST /api/conversations/:id/messages`);
+  console.log(`  PATCH /api/messages/:id/read`);
+  console.log(`✓ WebSocket: ws://localhost:${PORT}`);
 });

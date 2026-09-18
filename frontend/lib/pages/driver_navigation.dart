@@ -5,6 +5,7 @@ import 'driver_home_page.dart';
 import 'driver_trucks_page.dart';
 import 'driver_return_trips_page.dart';
 import 'profile_page.dart';
+import 'messages_page.dart';
 
 class DriverNavigation extends ConsumerWidget {
   const DriverNavigation({super.key});
@@ -35,6 +36,11 @@ class DriverNavigation extends ConsumerWidget {
             label: 'Mes trajets retour',
           ),
           NavigationDestination(
+            icon: Icon(Icons.message_outlined),
+            selectedIcon: Icon(Icons.message_rounded),
+            label: 'Messages',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(Icons.person_rounded),
             label: 'Profil',
@@ -51,6 +57,8 @@ class DriverNavigation extends ConsumerWidget {
       return const DriverTrucksPage();
     } else if (path.contains('/driver-trips')) {
       return const DriverReturnTripsPage();
+    } else if (path.contains('/driver-messages')) {
+      return const MessagesPage();
     } else if (path.contains('/driver-profile')) {
       return const ProfilePage();
     }
@@ -64,8 +72,10 @@ class DriverNavigation extends ConsumerWidget {
       return 1;
     } else if (path.contains('/driver-trips')) {
       return 2;
-    } else if (path.contains('/driver-profile')) {
+    } else if (path.contains('/driver-messages')) {
       return 3;
+    } else if (path.contains('/driver-profile')) {
+      return 4;
     }
     return 0;
   }
@@ -82,6 +92,9 @@ class DriverNavigation extends ConsumerWidget {
         GoRouter.of(context).go('/driver-trips');
         break;
       case 3:
+        GoRouter.of(context).go('/driver-messages');
+        break;
+      case 4:
         GoRouter.of(context).go('/driver-profile');
         break;
     }

@@ -123,6 +123,34 @@ function initializeDatabase() {
     )
   `);
 
+  // Conversations table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_id INTEGER NOT NULL UNIQUE,
+      driver_id INTEGER NOT NULL,
+      customer_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (request_id) REFERENCES transport_requests(id) ON DELETE CASCADE,
+      FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Messages table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      sender_id INTEGER NOT NULL,
+      message TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      read_at DATETIME,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+      FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   console.log('✓ Database tables initialized');
 }
 
