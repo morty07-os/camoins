@@ -144,7 +144,7 @@ class CustomerHomePage extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.message_outline_rounded),
+                  leading: const Icon(Icons.message_outlined),
                   title: const Text('Messages'),
                   subtitle: const Text('Vos conversations avec les transporteurs'),
                   trailing: const Icon(Icons.chevron_right_rounded),
