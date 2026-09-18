@@ -378,4 +378,193 @@ const CargaisonModel = {
   }
 };
 
-module.exports = { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel };
+// Transport request model functions
+const TransportRequestModel = {
+  create(customerId, tripId, requestData) {
+    const stmt = db.prepare(`
+      INSERT INTO transport_requests (trip_id, customer_id, requested_weight, requested_volume,
+                                      cargo_description, pickup_location, delivery_location, agreed_price, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+    `);
+
+    const result = stmt.run(
+      tripId,
+      customerId,
+      requestData.requested_weight,
+      requestData.requested_volume || null,
+      requestData.cargo_description || null,
+      requestData.pickup_location || null,
+      requestData.delivery_location || null,
+      requestData.agreed_price || 'Prix à convenir'
+    );
+
+    return result.lastInsertRowid;
+  },
+
+  findById(id) {
+    const stmt = db.prepare(`
+      SELECT id, trip_id, customer_id, requested_weight, requested_volume,
+             cargo_description, pickup_location, delivery_location, agreed_price,
+             status, created_at, updated_at
+      FROM transport_requests
+      WHERE id = ?
+    `);
+    return stmt.get(id);
+  },
+
+  findByCustomerId(customerId) {
+    const stmt = db.prepare(`
+      SELECT id, trip_id, customer_id, requested_weight, requested_volume,
+             cargo_description, pickup_location, delivery_location, agreed_price,
+             status, created_at, updated_at
+      FROM transport_requests
+      WHERE customer_id = ?
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(customerId);
+  },
+
+  findByTripId(tripId) {
+    const stmt = db.prepare(`
+      SELECT id, trip_id, customer_id, requested_weight, requested_volume,
+             cargo_description, pickup_location, delivery_location, agreed_price,
+             status, created_at, updated_at
+      FROM transport_requests
+      WHERE trip_id = ?
+      ORDER BY created_at DESC
+    `);
+    return stmt.all(tripId);
+  },
+
+  findByIdWithDetails(id) {
+    const stmt = db.prepare(`
+      SELECT tr.id, tr.trip_id, tr.customer_id, tr.requested_weight, tr.requested_volume,
+             tr.cargo_description, tr.pickup_location, tr.delivery_location, tr.agreed_price,
+             tr.status, tr.created_at, tr.updated_at,
+             t.*, p.full_name, p.rating, p.rating_count
+      FROM transport_requests tr
+      JOIN trips t ON tr.trip_id = t.id
+      JOIN profiles p ON tr.customer_id = p.user_id
+      WHERE tr.id = ?
+    `);
+    return stmt.get(id);
+  },
+
+  updateStatus(id, status) {
+    const stmt = db.prepare(`
+      UPDATE transport_requests
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    const result = stmt.run(status, id);
+    return result.changes > 0;
+  },
+
+  acceptWithCapacityUpdate(requestId, tripId) {
+    // Use transaction to atomically:
+    // 1. Get the request and verify capacity
+    // 2. Update request status to ACCEPTED
+    // 3. Reduce trip capacity
+    const transaction = db.transaction(() => {
+      // Get request
+      const request = db.prepare(`
+        SELECT requested_weight, requested_volume FROM transport_requests WHERE id = ?
+      `).get(requestId);
+
+      if (!request) {
+        throw new Error('Request not found');
+      }
+
+      // Get trip
+      const trip = db.prepare(`
+        SELECT available_weight, available_volume FROM trips WHERE id = ?
+      `).get(tripId);
+
+      if (!trip) {
+        throw new Error('Trip not found');
+      }
+
+      // Check capacity
+      if (trip.available_weight < request.requested_weight) {
+        throw new Error('Insufficient weight capacity');
+      }
+
+      if (request.requested_volume && trip.available_volume !== null && trip.available_volume < request.requested_volume) {
+        throw new Error('Insufficient volume capacity');
+      }
+
+      // Update request status
+      db.prepare(`
+        UPDATE transport_requests SET status = 'ACCEPTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(requestId);
+
+      // Update trip capacity
+      const newWeight = trip.available_weight - request.requested_weight;
+      const newVolume = request.requested_volume && trip.available_volume !== null
+        ? trip.available_volume - request.requested_volume
+        : trip.available_volume;
+
+      db.prepare(`
+        UPDATE trips SET available_weight = ?, available_volume = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(newWeight, newVolume, tripId);
+
+      return true;
+    });
+
+    try {
+      return transaction();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  cancelWithCapacityRestore(requestId, tripId) {
+    // Restore capacity if request was accepted
+    const transaction = db.transaction(() => {
+      const request = db.prepare(`
+        SELECT status, requested_weight, requested_volume FROM transport_requests WHERE id = ?
+      `).get(requestId);
+
+      if (!request) {
+        throw new Error('Request not found');
+      }
+
+      if (request.status === 'ACCEPTED') {
+        const trip = db.prepare(`
+          SELECT available_weight, available_volume FROM trips WHERE id = ?
+        `).get(tripId);
+
+        if (trip) {
+          const newWeight = trip.available_weight + request.requested_weight;
+          const newVolume = request.requested_volume && trip.available_volume !== null
+            ? trip.available_volume + request.requested_volume
+            : trip.available_volume;
+
+          db.prepare(`
+            UPDATE trips SET available_weight = ?, available_volume = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+          `).run(newWeight, newVolume, tripId);
+        }
+      }
+
+      db.prepare(`
+        UPDATE transport_requests SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(requestId);
+
+      return true;
+    });
+
+    try {
+      return transaction();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  delete(id) {
+    const stmt = db.prepare(`DELETE FROM transport_requests WHERE id = ?`);
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+};
+
+module.exports = { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel };

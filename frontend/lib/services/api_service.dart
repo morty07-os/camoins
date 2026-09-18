@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/user.dart';
 import '../models/truck.dart';
 import '../models/trip.dart';
+import '../models/transport_request.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -611,6 +612,221 @@ class ApiService {
         return {
           'success': false,
           'message': data['message'] ?? 'Failed to search trips',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  // Transport Request APIs
+
+  Future<Map<String, dynamic>> createRequest({
+    required int tripId,
+    required double requestedWeight,
+    double? requestedVolume,
+    String? cargoDescription,
+    String? pickupLocation,
+    String? deliveryLocation,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/requests'),
+        headers: await _authHeaders(),
+        body: jsonEncode({
+          'trip_id': tripId,
+          'requested_weight': requestedWeight,
+          if (requestedVolume != null) 'requested_volume': requestedVolume,
+          if (cargoDescription != null) 'cargo_description': cargoDescription,
+          if (pickupLocation != null) 'pickup_location': pickupLocation,
+          if (deliveryLocation != null) 'delivery_location': deliveryLocation,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 201 && data['success'] == true) {
+        return {
+          'success': true,
+          'request': TransportRequest.fromJson(data['request']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to create request',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> getMyRequests() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/requests/my'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'requests': (data['requests'] as List? ?? [])
+              .map((r) => TransportRequest.fromJson(r))
+              .toList(),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to get requests',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> getRequest(int id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/requests/$id'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'request': TransportRequest.fromJson(data['request']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to get request',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> acceptRequest(int id) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/requests/$id/accept'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'request': TransportRequest.fromJson(data['request']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to accept request',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> rejectRequest(int id) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/requests/$id/reject'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'request': TransportRequest.fromJson(data['request']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to reject request',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelRequest(int id) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/requests/$id/cancel'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'request': TransportRequest.fromJson(data['request']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to cancel request',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Cannot connect to the server',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> completeRequest(int id) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/requests/$id/complete'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'request': TransportRequest.fromJson(data['request']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Failed to complete request',
         };
       }
     } catch (e) {

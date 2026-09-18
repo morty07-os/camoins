@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const db = require('./database');
-const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel } = require('./models');
+const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel } = require('./models');
 const { generateToken, authMiddleware } = require('./auth');
 
 const app = express();
@@ -1278,6 +1278,431 @@ app.get('/api/search/trips', async (req, res) => {
     });
   } catch (error) {
     console.error('Search trips error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/requests - Customer requests transport
+app.post('/api/requests', authMiddleware, (req, res) => {
+  try {
+    const { trip_id, requested_weight, requested_volume, cargo_description, pickup_location, delivery_location } = req.body;
+
+    // Validate required fields
+    if (!trip_id || requested_weight === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Trip ID and requested weight are required'
+      });
+    }
+
+    const weight = parseFloat(requested_weight);
+    if (isNaN(weight) || weight <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Requested weight must be a positive number'
+      });
+    }
+
+    // Get trip
+    const trip = TripModel.findById(trip_id);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Verify trip is published and belongs to a different driver
+    if (trip.status !== 'PUBLISHED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Trip is not available for requests'
+      });
+    }
+
+    if (trip.driver_id === req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot request your own trip'
+      });
+    }
+
+    // Check capacity
+    if (trip.available_weight < weight) {
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient weight capacity on this trip'
+      });
+    }
+
+    const volume = requested_volume ? parseFloat(requested_volume) : null;
+    if (volume !== null && !isNaN(volume)) {
+      if (trip.available_volume === null || trip.available_volume < volume) {
+        return res.status(400).json({
+          success: false,
+          message: 'Insufficient volume capacity on this trip'
+        });
+      }
+    }
+
+    // Create request
+    const requestId = TransportRequestModel.create(req.user.id, trip_id, {
+      requested_weight: weight,
+      requested_volume: volume,
+      cargo_description: cargo_description || null,
+      pickup_location: pickup_location || null,
+      delivery_location: delivery_location || null
+    });
+
+    const request = TransportRequestModel.findById(requestId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Transport request created successfully',
+      request
+    });
+  } catch (error) {
+    console.error('Create request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/requests/my - Get my requests (customer sees their requests, driver sees requests for their trips)
+app.get('/api/requests/my', authMiddleware, (req, res) => {
+  try {
+    let requests;
+
+    if (req.user.role === 'DRIVER') {
+      // Driver sees requests for their trips
+      const driverTrips = TripModel.findByDriverId(req.user.id);
+      const tripIds = driverTrips.map(t => t.id);
+
+      if (tripIds.length === 0) {
+        requests = [];
+      } else {
+        const placeholders = tripIds.map(() => '?').join(',');
+        const stmt = db.prepare(`
+          SELECT tr.*, p.full_name as customer_name, p.rating as customer_rating, p.rating_count as customer_rating_count
+          FROM transport_requests tr
+          JOIN profiles p ON tr.customer_id = p.user_id
+          WHERE tr.trip_id IN (${placeholders})
+          ORDER BY tr.created_at DESC
+        `);
+        requests = stmt.all(...tripIds);
+      }
+    } else {
+      // Customer sees their requests
+      requests = TransportRequestModel.findByCustomerId(req.user.id);
+      // Enrich with customer name (for consistency)
+      const profile = ProfileModel.findByUserId(req.user.id);
+      requests = requests.map(r => ({
+        ...r,
+        customer_name: profile?.full_name,
+        customer_rating: profile?.rating,
+        customer_rating_count: profile?.rating_count
+      }));
+    }
+
+    res.json({
+      success: true,
+      requests
+    });
+  } catch (error) {
+    console.error('Get requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/requests/:id - Get specific request
+app.get('/api/requests/:id', authMiddleware, (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const request = TransportRequestModel.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found'
+      });
+    }
+
+    const trip = TripModel.findById(request.trip_id);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Associated trip not found'
+      });
+    }
+
+    // Verify access: customer owns request OR driver owns trip
+    if (req.user.id !== request.customer_id && req.user.id !== trip.driver_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
+      });
+    }
+
+    // Enrich with additional data
+    const truck = TruckModel.findById(trip.truck_id);
+    const customerProfile = ProfileModel.findByUserId(request.customer_id);
+    const driverProfile = ProfileModel.findByUserId(trip.driver_id);
+
+    res.json({
+      success: true,
+      request: {
+        ...request,
+        trip,
+        truck,
+        customer: {
+          id: request.customer_id,
+          full_name: customerProfile?.full_name,
+          rating: customerProfile?.rating,
+          rating_count: customerProfile?.rating_count
+        },
+        driver: {
+          id: trip.driver_id,
+          full_name: driverProfile?.full_name,
+          rating: driverProfile?.rating,
+          rating_count: driverProfile?.rating_count
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/requests/:id/accept - Driver accepts request
+app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const request = TransportRequestModel.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found'
+      });
+    }
+
+    const trip = TripModel.findById(request.trip_id);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Verify driver owns this trip
+    if (trip.driver_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not own this trip'
+      });
+    }
+
+    // Verify request is pending
+    if (request.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot accept a ${request.status} request`
+      });
+    }
+
+    try {
+      // Accept with capacity update (transaction)
+      TransportRequestModel.acceptWithCapacityUpdate(requestId, request.trip_id);
+
+      const updatedRequest = TransportRequestModel.findById(requestId);
+      const updatedTrip = TripModel.findById(request.trip_id);
+
+      res.json({
+        success: true,
+        message: 'Transport request accepted',
+        request: updatedRequest,
+        trip: updatedTrip
+      });
+    } catch (error) {
+      if (error.message.includes('Insufficient')) {
+        return res.status(409).json({
+          success: false,
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('Accept request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/requests/:id/reject - Driver rejects request
+app.post('/api/requests/:id/reject', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const request = TransportRequestModel.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found'
+      });
+    }
+
+    const trip = TripModel.findById(request.trip_id);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Verify driver owns this trip
+    if (trip.driver_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not own this trip'
+      });
+    }
+
+    // Verify request is pending
+    if (request.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot reject a ${request.status} request`
+      });
+    }
+
+    // Update status
+    TransportRequestModel.updateStatus(requestId, 'REJECTED');
+    const updatedRequest = TransportRequestModel.findById(requestId);
+
+    res.json({
+      success: true,
+      message: 'Transport request rejected',
+      request: updatedRequest
+    });
+  } catch (error) {
+    console.error('Reject request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/requests/:id/cancel - Customer cancels request
+app.post('/api/requests/:id/cancel', authMiddleware, (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const request = TransportRequestModel.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found'
+      });
+    }
+
+    // Verify customer owns this request
+    if (request.customer_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You cannot cancel this request'
+      });
+    }
+
+    // Can only cancel if PENDING or ACCEPTED
+    if (request.status === 'REJECTED' || request.status === 'COMPLETED' || request.status === 'CANCELLED') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel a ${request.status} request`
+      });
+    }
+
+    // Cancel with capacity restore if accepted
+    TransportRequestModel.cancelWithCapacityRestore(requestId, request.trip_id);
+    const updatedRequest = TransportRequestModel.findById(requestId);
+
+    res.json({
+      success: true,
+      message: 'Transport request cancelled',
+      request: updatedRequest
+    });
+  } catch (error) {
+    console.error('Cancel request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/requests/:id/complete - Driver completes request
+app.post('/api/requests/:id/complete', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const requestId = parseInt(req.params.id);
+    const request = TransportRequestModel.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found'
+      });
+    }
+
+    const trip = TripModel.findById(request.trip_id);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Verify driver owns this trip
+    if (trip.driver_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not own this trip'
+      });
+    }
+
+    // Verify request is accepted
+    if (request.status !== 'ACCEPTED') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot complete a ${request.status} request`
+      });
+    }
+
+    // Update status
+    TransportRequestModel.updateStatus(requestId, 'COMPLETED');
+    const updatedRequest = TransportRequestModel.findById(requestId);
+
+    res.json({
+      success: true,
+      message: 'Transport request completed',
+      request: updatedRequest
+    });
+  } catch (error) {
+    console.error('Complete request error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'

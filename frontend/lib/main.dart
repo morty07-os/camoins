@@ -15,6 +15,9 @@ import 'pages/return_trip_details_page.dart';
 import 'pages/trip_search_page.dart';
 import 'pages/trip_search_results_page.dart';
 import 'pages/search_trip_details_page.dart';
+import 'pages/request_form_page.dart';
+import 'pages/driver_requests_page.dart';
+import 'models/trip.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
 
@@ -170,6 +173,27 @@ class BackhaulApp extends ConsumerWidget {
               initialResult: result,
             );
           },
+        ),
+        GoRoute(
+          path: '/request-form/:tripId',
+          builder: (context, state) {
+            final tripId = int.tryParse(state.pathParameters['tripId'] ?? '') ?? 0;
+            final trip = state.extra as Trip?;
+            if (trip == null) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('Erreur')),
+                body: const Center(child: Text('Trajet non disponible')),
+              );
+            }
+            return RequestFormPage(
+              tripId: tripId,
+              trip: trip,
+            );
+          },
+        ),
+        GoRoute(
+          path: '/driver-requests',
+          builder: (context, state) => const DriverRequestsPage(),
         ),
         GoRoute(
           path: '/profile',
