@@ -681,7 +681,7 @@ const MessageModel = {
 
   getLastMessage(conversationId) {
     const stmt = db.prepare(`
-      SELECT id, conversation_id, sender_id, message, created_at, read_at,
+      SELECT m.id, m.conversation_id, m.sender_id, m.message, m.created_at, m.read_at,
              p.full_name as sender_name
       FROM messages m
       LEFT JOIN profiles p ON m.sender_id = p.user_id
