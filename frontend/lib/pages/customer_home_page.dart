@@ -144,6 +144,14 @@ class CustomerHomePage extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
+                  leading: const Icon(Icons.message_outline_rounded),
+                  title: const Text('Messages'),
+                  subtitle: const Text('Vos conversations avec les transporteurs'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/messages'),
+                ),
+                const Divider(),
+                ListTile(
                   leading: const Icon(Icons.person_outline_rounded),
                   title: const Text('Profil'),
                   subtitle: const Text('Vos informations personnelles'),
