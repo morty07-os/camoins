@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../models/truck.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/states.dart';
 import '../widgets/truck_card.dart';
 
@@ -137,6 +138,9 @@ class _DriverTrucksPageState extends ConsumerState<DriverTrucksPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes camions'),
+        actions: [
+          const NotificationIcon(),
+        ],
       ),
       body: _isLoading
           ? const LoadingState(message: 'Chargement de vos camions…')

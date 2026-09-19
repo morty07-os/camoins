@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/info_row.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/section_title.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -131,6 +132,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               },
               tooltip: 'Modifier le profil',
             ),
+          const NotificationIcon(),
         ],
       ),
       body: Center(

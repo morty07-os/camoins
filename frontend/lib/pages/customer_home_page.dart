@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_avatar.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/section_title.dart';
 
 class CustomerHomePage extends ConsumerWidget {
@@ -18,17 +19,7 @@ class CustomerHomePage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Accueil'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none_rounded),
-            tooltip: 'Notifications',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Aucune notification pour le moment'),
-                ),
-              );
-            },
-          ),
+          const NotificationIcon(),
         ],
       ),
       body: SingleChildScrollView(

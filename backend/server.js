@@ -4,7 +4,7 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const db = require('./database');
-const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel } = require('./models');
+const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel } = require('./models');
 const { generateToken, authMiddleware, verifyToken } = require('./auth');
 
 const app = express();
@@ -20,6 +20,99 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// ============================================
+// NOTIFICATION HELPER FUNCTIONS
+// ============================================
+
+// Create notification for a user
+async function createNotification(userId, title, body, type, relatedId = null) {
+  try {
+    // Create in database
+    const notificationId = NotificationModel.create(userId, {
+      title,
+      body,
+      type,
+      related_id: relatedId
+    });
+
+    // Get the created notification
+    const notification = NotificationModel.findById(notificationId);
+
+    // Send real-time notification via WebSocket if user is connected
+    // We can emit to a user-specific room
+    io.to(`user-${userId}`).emit('notification', notification);
+
+    return notification;
+  } catch (error) {
+    console.error('Create notification error:', error);
+    return null;
+  }
+}
+
+// Create notifications for multiple users
+async function createNotifications(userIds, title, body, type, relatedId = null) {
+  for (const userId of userIds) {
+    await createNotification(userId, title, body, type, relatedId);
+  }
+}
+
+// Notification types
+const NOTIFICATION_TYPES = {
+  REQUEST_ACCEPTED: 'request_accepted',
+  REQUEST_REJECTED: 'request_rejected',
+  REQUEST_CANCELLED: 'request_cancelled',
+  TRIP_STARTED: 'trip_started',
+  TRIP_COMPLETED: 'trip_completed',
+  NEW_MESSAGE: 'new_message',
+  NEW_REQUEST: 'new_request',
+  TRIP_CANCELLED: 'trip_cancelled'
+};
+
+// ============================================
+// FIREBASE CLOUD MESSAGING PREPARATION
+// ============================================
+// To enable push notifications, add firebase-admin:
+// 1. npm install firebase-admin
+// 2. Add service account key
+// 3. Initialize FCM
+//
+// const admin = require('firebase-admin');
+// const serviceAccount = require('./path/to/serviceAccountKey.json');
+// admin.initializeApp({
+//   credential: admin.credential.cert(serviceAccount)
+// });
+//
+// async function sendPushNotification(token, title, body, data = {}) {
+//   try {
+//     const message = {
+//       token,
+//       notification: { title, body },
+//       data: { ...data, click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+//       android: { priority: 'high' }
+//     };
+//     await admin.messaging().send(message);
+//   } catch (error) {
+//     console.error('FCM send error:', error);
+//   }
+// }
+//
+// In createNotification, after io.emit, also call:
+// if (user has FCM token) sendPushNotification(token, title, body, { type, relatedId });
+
+// Store FCM tokens per user (in-memory for now, use DB in production)
+const userFcmTokens = new Map();
+
+// API to register FCM token
+// app.post('/api/notifications/fcm-token', authMiddleware, (req, res) => {
+//   const { token } = req.body;
+//   if (token) {
+//     userFcmTokens.set(req.user.id, token);
+//     res.json({ success: true });
+//   } else {
+//     res.status(400).json({ success: false, message: 'Token required' });
+//   }
+// });
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -831,6 +924,21 @@ app.post('/api/trips/:id/start', authMiddleware, isDriverMiddleware, (req, res) 
     TripModel.updateStatus(trip.id, 'IN_PROGRESS');
     const updatedTrip = TripModel.findById(trip.id);
 
+    // Notify customers with accepted requests on this trip
+    const acceptedRequests = db.prepare(`
+      SELECT customer_id FROM transport_requests
+      WHERE trip_id = ? AND status = 'ACCEPTED'
+    `).all(trip.id);
+
+    for (const req of acceptedRequests) {
+      createNotification(req.customer_id,
+        'Transport Started',
+        `Your transport from ${trip.origin_name} to ${trip.destination_name} has started.`,
+        NOTIFICATION_TYPES.TRIP_STARTED,
+        trip.id
+      );
+    }
+
     res.json({
       success: true,
       message: 'Return trip started successfully',
@@ -863,6 +971,21 @@ app.post('/api/trips/:id/complete', authMiddleware, isDriverMiddleware, (req, re
     TripModel.updateStatus(trip.id, 'COMPLETED');
     const updatedTrip = TripModel.findById(trip.id);
 
+    // Notify customers with accepted requests on this trip
+    const acceptedRequests = db.prepare(`
+      SELECT customer_id FROM transport_requests
+      WHERE trip_id = ? AND status = 'ACCEPTED'
+    `).all(trip.id);
+
+    for (const req of acceptedRequests) {
+      createNotification(req.customer_id,
+        'Transport Completed',
+        `Your transport from ${trip.origin_name} to ${trip.destination_name} has been completed.`,
+        NOTIFICATION_TYPES.TRIP_COMPLETED,
+        trip.id
+      );
+    }
+
     res.json({
       success: true,
       message: 'Return trip completed successfully',
@@ -894,6 +1017,21 @@ app.post('/api/trips/:id/cancel', authMiddleware, isDriverMiddleware, (req, res)
 
     TripModel.updateStatus(trip.id, 'CANCELLED');
     const updatedTrip = TripModel.findById(trip.id);
+
+    // Notify customers with accepted/pending requests on this trip
+    const requests = db.prepare(`
+      SELECT customer_id FROM transport_requests
+      WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')
+    `).all(trip.id);
+
+    for (const req of requests) {
+      createNotification(req.customer_id,
+        'Transport Cancelled',
+        `The transport from ${trip.origin_name} to ${trip.destination_name} has been cancelled by the driver.`,
+        NOTIFICATION_TYPES.TRIP_CANCELLED,
+        trip.id
+      );
+    }
 
     res.json({
       success: true,
@@ -1368,6 +1506,15 @@ app.post('/api/requests', authMiddleware, (req, res) => {
 
     const request = TransportRequestModel.findById(requestId);
 
+    // Notify driver of new transport request
+    const driverProfile = ProfileModel.findByUserId(req.user.id);
+    createNotification(trip.driver_id,
+      'New Transport Request',
+      `${driverProfile?.full_name || 'A customer'} has requested transport from ${trip.origin_name} to ${trip.destination_name}.`,
+      NOTIFICATION_TYPES.NEW_REQUEST,
+      requestId
+    );
+
     res.status(201).json({
       success: true,
       message: 'Transport request created successfully',
@@ -1545,6 +1692,14 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
         conversation = ConversationModel.findById(conversationId);
       }
 
+      // Notify customer that request was accepted
+      createNotification(request.customer_id,
+        'Request Accepted',
+        `Your transport request for ${trip.origin_name} to ${trip.destination_name} has been accepted.`,
+        NOTIFICATION_TYPES.REQUEST_ACCEPTED,
+        requestId
+      );
+
       res.json({
         success: true,
         message: 'Transport request accepted',
@@ -1611,6 +1766,14 @@ app.post('/api/requests/:id/reject', authMiddleware, isDriverMiddleware, (req, r
     TransportRequestModel.updateStatus(requestId, 'REJECTED');
     const updatedRequest = TransportRequestModel.findById(requestId);
 
+    // Notify customer that request was rejected
+    createNotification(request.customer_id,
+      'Request Rejected',
+      `Your transport request for ${trip.origin_name} to ${trip.destination_name} has been rejected.`,
+      NOTIFICATION_TYPES.REQUEST_REJECTED,
+      requestId
+    );
+
     res.json({
       success: true,
       message: 'Transport request rejected',
@@ -1646,6 +1809,14 @@ app.post('/api/requests/:id/cancel', authMiddleware, (req, res) => {
       });
     }
 
+    const trip = TripModel.findById(request.trip_id);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
     // Can only cancel if PENDING or ACCEPTED
     if (request.status === 'REJECTED' || request.status === 'COMPLETED' || request.status === 'CANCELLED') {
       return res.status(400).json({
@@ -1657,6 +1828,14 @@ app.post('/api/requests/:id/cancel', authMiddleware, (req, res) => {
     // Cancel with capacity restore if accepted
     TransportRequestModel.cancelWithCapacityRestore(requestId, request.trip_id);
     const updatedRequest = TransportRequestModel.findById(requestId);
+
+    // Notify driver that request was cancelled
+    createNotification(trip.driver_id,
+      'Request Cancelled',
+      `The customer cancelled the transport request for ${trip.origin_name} to ${trip.destination_name}.`,
+      NOTIFICATION_TYPES.REQUEST_CANCELLED,
+      requestId
+    );
 
     res.json({
       success: true,
@@ -1947,8 +2126,20 @@ app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
       });
     }
 
+    // Determine the other user
+    const otherUserId = req.user.id === conversation.driver_id ? conversation.customer_id : conversation.driver_id;
+
     // Persist once and broadcast to every connected participant.
     const payload = deliverMessage(conversationId, req.user.id, message.trim(), client_id || null);
+
+    // Notify the other user if they're not currently in the conversation
+    const senderProfile = ProfileModel.findByUserId(req.user.id);
+    createNotification(otherUserId,
+      `New message from ${senderProfile?.full_name || 'Someone'}`,
+      message.trim().substring(0, 100),
+      NOTIFICATION_TYPES.NEW_MESSAGE,
+      conversationId
+    );
 
     res.status(201).json({
       success: true,
@@ -2011,7 +2202,93 @@ app.patch('/api/messages/:id/read', authMiddleware, (req, res) => {
   }
 });
 
-// ---- WebSocket (Socket.IO) ----
+// ============================================
+// NOTIFICATION API ENDPOINTS
+// ============================================
+
+// GET /api/notifications - Get all notifications for current user
+app.get('/api/notifications', authMiddleware, (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const notifications = NotificationModel.findByUserId(req.user.id, limit, offset);
+    const unreadCount = NotificationModel.getUnreadCount(req.user.id);
+
+    res.json({
+      success: true,
+      notifications,
+      unread_count: unreadCount.count
+    });
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// PATCH /api/notifications/:id/read - Mark notification as read
+app.patch('/api/notifications/:id/read', authMiddleware, (req, res) => {
+  try {
+    const notificationId = parseInt(req.params.id);
+
+    const notification = NotificationModel.findById(notificationId);
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+
+    // Verify ownership
+    if (notification.user_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
+    NotificationModel.markAsRead(notificationId);
+    const updatedNotification = NotificationModel.findById(notificationId);
+
+    res.json({
+      success: true,
+      message: 'Notification marked as read',
+      notification: updatedNotification
+    });
+  } catch (error) {
+    console.error('Mark notification as read error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// PATCH /api/notifications/read-all - Mark all notifications as read
+app.patch('/api/notifications/read-all', authMiddleware, (req, res) => {
+  try {
+    const count = NotificationModel.markAllAsRead(req.user.id);
+
+    res.json({
+      success: true,
+      message: 'All notifications marked as read',
+      updated_count: count
+    });
+  } catch (error) {
+    console.error('Mark all notifications as read error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// ============================================
+// WebSocket (Socket.IO)
+// ============================================
 
 // Middleware to verify socket connection
 io.use((socket, next) => {
@@ -2033,6 +2310,9 @@ io.use((socket, next) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`✓ User ${socket.userId} connected`);
+
+  // Join user-specific room for notifications
+  socket.join(`user-${socket.userId}`);
 
   // Join conversation room
   socket.on('join-conversation', (incomingId) => {
@@ -2072,7 +2352,19 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // Determine the other user
+      const otherUserId = socket.userId === conversation.driver_id ? conversation.customer_id : conversation.driver_id;
+
       const payload = deliverMessage(conversationId, socket.userId, String(message).trim(), clientId || null);
+
+      // Notify the other user if they're not currently in the conversation
+      const senderProfile = ProfileModel.findByUserId(socket.userId);
+      createNotification(otherUserId,
+        `New message from ${senderProfile?.full_name || 'Someone'}`,
+        String(message).trim().substring(0, 100),
+        NOTIFICATION_TYPES.NEW_MESSAGE,
+        conversationId
+      );
 
       if (typeof ack === 'function') {
         ack({ success: true, data: payload });
@@ -2162,5 +2454,8 @@ const httpServer = server.listen(PORT, () => {
   console.log(`  GET  /api/conversations/:id/messages`);
   console.log(`  POST /api/conversations/:id/messages`);
   console.log(`  PATCH /api/messages/:id/read`);
+  console.log(`  GET  /api/notifications`);
+  console.log(`  PATCH /api/notifications/:id/read`);
+  console.log(`  PATCH /api/notifications/read-all`);
   console.log(`✓ WebSocket: ws://localhost:${PORT}`);
 });

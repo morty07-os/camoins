@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/transport_request.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/section_title.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/states.dart';
 
 class DriverRequestsPage extends ConsumerStatefulWidget {
@@ -188,6 +188,9 @@ class _DriverRequestsPageState extends ConsumerState<DriverRequestsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes demandes'),
+        actions: [
+          const NotificationIcon(),
+        ],
       ),
       body: _isLoading
           ? const LoadingState(message: 'Chargement de vos demandes…')

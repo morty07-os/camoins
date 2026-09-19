@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/search_result.dart';
 import '../theme/app_theme.dart';
+import '../widgets/notification_icon.dart';
 
 class TripSearchResultsPage extends StatelessWidget {
   final List<dynamic> results;
@@ -17,6 +18,9 @@ class TripSearchResultsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Résultats de recherche'),
+        actions: [
+          const NotificationIcon(),
+        ],
       ),
       body: searchResults.isEmpty
           ? Center(

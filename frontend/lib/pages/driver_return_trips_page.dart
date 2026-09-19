@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/trip.dart';
 import '../services/api_service.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/states.dart';
 import '../widgets/trip_card.dart';
 
@@ -82,6 +83,9 @@ class _DriverReturnTripsPageState extends ConsumerState<DriverReturnTripsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes trajets retour'),
+        actions: [
+          const NotificationIcon(),
+        ],
       ),
       body: _isLoading
           ? const LoadingState(message: 'Chargement de vos trajets…')

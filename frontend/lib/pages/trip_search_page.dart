@@ -4,6 +4,7 @@ import '../models/trip.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/location_field.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/section_title.dart';
 
 class TripSearchFormData {
@@ -166,6 +167,9 @@ class _TripSearchPageState extends State<TripSearchPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Rechercher un trajet'),
+        actions: [
+          const NotificationIcon(),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
