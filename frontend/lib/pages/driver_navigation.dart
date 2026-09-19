@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'driver_home_page.dart';
 import 'driver_trucks_page.dart';
 import 'driver_return_trips_page.dart';
+import 'driver_history_page.dart';
 import 'profile_page.dart';
 import 'messages_page.dart';
 
@@ -36,6 +37,11 @@ class DriverNavigation extends ConsumerWidget {
             label: 'Mes trajets retour',
           ),
           NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history_rounded),
+            label: 'Historique',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.message_outlined),
             selectedIcon: Icon(Icons.message_rounded),
             label: 'Messages',
@@ -57,6 +63,8 @@ class DriverNavigation extends ConsumerWidget {
       return const DriverTrucksPage();
     } else if (path.contains('/driver-trips')) {
       return const DriverReturnTripsPage();
+    } else if (path.contains('/driver-history')) {
+      return const DriverHistoryPage();
     } else if (path.contains('/driver-messages')) {
       return const MessagesPage();
     } else if (path.contains('/driver-profile')) {
@@ -72,10 +80,12 @@ class DriverNavigation extends ConsumerWidget {
       return 1;
     } else if (path.contains('/driver-trips')) {
       return 2;
-    } else if (path.contains('/driver-messages')) {
+    } else if (path.contains('/driver-history')) {
       return 3;
-    } else if (path.contains('/driver-profile')) {
+    } else if (path.contains('/driver-messages')) {
       return 4;
+    } else if (path.contains('/driver-profile')) {
+      return 5;
     }
     return 0;
   }
@@ -92,9 +102,12 @@ class DriverNavigation extends ConsumerWidget {
         GoRouter.of(context).go('/driver-trips');
         break;
       case 3:
-        GoRouter.of(context).go('/driver-messages');
+        GoRouter.of(context).go('/driver-history');
         break;
       case 4:
+        GoRouter.of(context).go('/driver-messages');
+        break;
+      case 5:
         GoRouter.of(context).go('/driver-profile');
         break;
     }

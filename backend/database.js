@@ -169,6 +169,25 @@ function initializeDatabase() {
     )
   `);
 
+  // Ratings table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ratings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trip_id INTEGER NOT NULL,
+      request_id INTEGER NOT NULL,
+      reviewer_id INTEGER NOT NULL,
+      reviewed_user_id INTEGER NOT NULL,
+      rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+      comment TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+      FOREIGN KEY (request_id) REFERENCES transport_requests(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewed_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(request_id, reviewer_id)
+    )
+  `);
+
   // Migration: Add missing columns if they don't exist (for existing databases)
   const columns = db.prepare("PRAGMA table_info(notifications)").all();
   const columnNames = columns.map(c => c.name);

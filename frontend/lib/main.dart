@@ -5,6 +5,7 @@ import 'login_page.dart';
 import 'pages/register_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/customer_home_page.dart';
+import 'pages/customer_history_page.dart';
 import 'pages/driver_navigation.dart';
 import 'pages/add_truck_page.dart';
 import 'pages/edit_truck_page.dart';
@@ -81,7 +82,8 @@ class BackhaulApp extends ConsumerWidget {
             location.startsWith('/add-truck') ||
             location.startsWith('/edit-truck') ||
             location.startsWith('/edit-return-trip') ||
-            location.startsWith('/publish-return-trip');
+            location.startsWith('/publish-return-trip') ||
+            location.startsWith('/driver-history');
 
         // A customer must not access driver (truck management) screens
         if (isAuthenticated && user?.isCustomer == true && isDriverRoute) {
@@ -159,6 +161,14 @@ class BackhaulApp extends ConsumerWidget {
         GoRoute(
           path: '/customer-home',
           builder: (context, state) => const CustomerHomePage(),
+        ),
+        GoRoute(
+          path: '/customer-history',
+          builder: (context, state) => const CustomerHistoryPage(),
+        ),
+        GoRoute(
+          path: '/driver-history',
+          builder: (context, state) => const DriverNavigation(),
         ),
         GoRoute(
           path: '/search-trips',
