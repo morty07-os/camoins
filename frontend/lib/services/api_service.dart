@@ -7,6 +7,7 @@ import '../models/trip.dart';
 import '../models/transport_request.dart';
 import '../models/conversation.dart';
 import '../models/notification.dart';
+import '../models/rating.dart' hide UserProfile;
 import 'storage_service.dart';
 
 class ApiService {
@@ -982,6 +983,80 @@ class ApiService {
         return data['updated_count'] as int? ?? 0;
       } else {
         throw Exception(data['message'] ?? 'Failed to mark all notifications as read');
+      }
+    } catch (e) {
+      throw Exception('Cannot connect to the server');
+    }
+  }
+
+  // ---- Ratings ----
+
+  Future<Rating> createRating({
+    required int tripId,
+    required int requestId,
+    required int reviewedUserId,
+    required int rating,
+    String? comment,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/ratings'),
+        headers: await _authHeaders(),
+        body: jsonEncode({
+          'trip_id': tripId,
+          'request_id': requestId,
+          'reviewed_user_id': reviewedUserId,
+          'rating': rating,
+          if (comment != null && comment.isNotEmpty) 'comment': comment,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 201 && data['success'] == true) {
+        return Rating.fromJson(data['rating'] as Map<String, dynamic>);
+      } else {
+        throw Exception(data['message'] ?? 'Failed to create rating');
+      }
+    } catch (e) {
+      throw Exception('Cannot connect to the server');
+    }
+  }
+
+  Future<List<Rating>> getUserRatings(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$userId/ratings'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return (data['ratings'] as List? ?? [])
+            .map((r) => Rating.fromJson(r as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw Exception(data['message'] ?? 'Failed to get user ratings');
+      }
+    } catch (e) {
+      throw Exception('Cannot connect to the server');
+    }
+  }
+
+  Future<HistoryResponse> getTripHistory() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/trips/history'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return HistoryResponse.fromJson(data);
+      } else {
+        throw Exception(data['message'] ?? 'Failed to get trip history');
       }
     } catch (e) {
       throw Exception('Cannot connect to the server');

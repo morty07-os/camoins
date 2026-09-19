@@ -7,13 +7,16 @@ class AppColors {
   static const Color primaryDark = Color(0xFF0B2A44);
   static const Color secondary = Color(0xFF1E5A7A);
   static const Color accent = Color(0xFFF59E0B);
+  static const Color warning = Color(0xFFF59E0B);
   static const Color success = Color(0xFF16A34A);
   static const Color error = Color(0xFFDC2626);
   static const Color background = Color(0xFFF5F7FA);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color text = Color(0xFF172033);
   static const Color textSecondary = Color(0xFF64748B);
+  static const Color textTertiary = Color(0xFF94A3B8);
   static const Color border = Color(0xFFE2E8F0);
+  static const Color divider = Color(0xFFE2E8F0);
 
   static const Color primarySoft = Color(0xFFE6EEF5);
   static const Color secondarySoft = Color(0xFFE4EEF5);

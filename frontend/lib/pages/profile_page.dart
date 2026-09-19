@@ -8,6 +8,7 @@ import '../widgets/app_avatar.dart';
 import '../widgets/info_row.dart';
 import '../widgets/notification_icon.dart';
 import '../widgets/section_title.dart';
+import '../widgets/star_rating.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -207,6 +208,27 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             color: AppColors.textSecondary,
           ),
         ),
+        const SizedBox(height: 12),
+        if (profile.ratingCount > 0)
+          Center(
+            child: StarRatingDisplay(
+              rating: profile.rating,
+              count: profile.ratingCount,
+              starSize: 20,
+              fontSize: 16,
+            ),
+          )
+        else
+          Center(
+            child: Text(
+              'Aucune évaluation pour le moment',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
         const SizedBox(height: 24),
         const SectionTitle(
           title: 'Informations',

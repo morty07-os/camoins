@@ -773,4 +773,172 @@ const NotificationModel = {
   }
 };
 
-module.exports = { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel };
+// Rating model functions
+const RatingModel = {
+  create(data) {
+    const stmt = db.prepare(`
+      INSERT INTO ratings (trip_id, request_id, reviewer_id, reviewed_user_id, rating, comment)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      data.trip_id,
+      data.request_id,
+      data.reviewer_id,
+      data.reviewed_user_id,
+      data.rating,
+      data.comment || null
+    );
+
+    return result.lastInsertRowid;
+  },
+
+  findById(id) {
+    const stmt = db.prepare(`
+      SELECT r.*, p.full_name as reviewer_name, p.profile_image as reviewer_image
+      FROM ratings r
+      LEFT JOIN profiles p ON r.reviewer_id = p.user_id
+      WHERE r.id = ?
+    `);
+    return stmt.get(id);
+  },
+
+  findByRequestId(requestId) {
+    const stmt = db.prepare(`
+      SELECT r.*, p.full_name as reviewer_name, p.profile_image as reviewer_image,
+             u.role as reviewer_role
+      FROM ratings r
+      LEFT JOIN profiles p ON r.reviewer_id = p.user_id
+      LEFT JOIN users u ON r.reviewer_id = u.id
+      WHERE r.request_id = ?
+      ORDER BY r.created_at DESC
+    `);
+    return stmt.all(requestId);
+  },
+
+  findByUserId(userId) {
+    const stmt = db.prepare(`
+      SELECT r.*, p.full_name as reviewer_name, p.profile_image as reviewer_image,
+             u.role as reviewer_role,
+             tr.id as request_id, tr.trip_id,
+             t.origin_name, t.destination_name, t.departure_date
+      FROM ratings r
+      LEFT JOIN profiles p ON r.reviewer_id = p.user_id
+      LEFT JOIN users u ON r.reviewer_id = u.id
+      LEFT JOIN transport_requests tr ON r.request_id = tr.id
+      LEFT JOIN trips t ON r.trip_id = t.id
+      WHERE r.reviewed_user_id = ?
+      ORDER BY r.created_at DESC
+    `);
+    return stmt.all(userId);
+  },
+
+  findByReviewerId(reviewerId) {
+    const stmt = db.prepare(`
+      SELECT r.*, p.full_name as reviewed_name, p.profile_image as reviewed_image,
+             u.role as reviewed_role,
+             tr.id as request_id, tr.trip_id,
+             t.origin_name, t.destination_name, t.departure_date
+      FROM ratings r
+      LEFT JOIN profiles p ON r.reviewed_user_id = p.user_id
+      LEFT JOIN users u ON r.reviewed_user_id = u.id
+      LEFT JOIN transport_requests tr ON r.request_id = tr.id
+      LEFT JOIN trips t ON r.trip_id = t.id
+      WHERE r.reviewer_id = ?
+      ORDER BY r.created_at DESC
+    `);
+    return stmt.all(reviewerId);
+  },
+
+  findByTripId(tripId) {
+    const stmt = db.prepare(`
+      SELECT r.*, p.full_name as reviewer_name, p.profile_image as reviewer_image,
+             u.role as reviewer_role
+      FROM ratings r
+      LEFT JOIN profiles p ON r.reviewer_id = p.user_id
+      LEFT JOIN users u ON r.reviewer_id = u.id
+      WHERE r.trip_id = ?
+      ORDER BY r.created_at DESC
+    `);
+    return stmt.all(tripId);
+  },
+
+  getAverageRating(userId) {
+    const stmt = db.prepare(`
+      SELECT 
+        AVG(rating) as avg_rating,
+        COUNT(*) as rating_count
+      FROM ratings
+      WHERE reviewed_user_id = ?
+    `);
+    const result = stmt.get(userId);
+    return {
+      avg: result.avg_rating ? parseFloat(result.avg_rating.toFixed(1)) : 0,
+      count: result.rating_count || 0
+    };
+  },
+
+  hasUserRated(requestId, reviewerId) {
+    const stmt = db.prepare(`
+      SELECT id FROM ratings WHERE request_id = ? AND reviewer_id = ?
+    `);
+    return !!stmt.get(requestId, reviewerId);
+  },
+
+  canRate(requestId, userId) {
+    // Check if request exists and is completed
+    const request = db.prepare(`
+      SELECT tr.*, t.driver_id, t.id as trip_id
+      FROM transport_requests tr
+      JOIN trips t ON tr.trip_id = t.id
+      WHERE tr.id = ?
+    `).get(requestId);
+
+    if (!request) {
+      return { canRate: false, reason: 'Request not found' };
+    }
+
+    if (request.status !== 'COMPLETED') {
+      return { canRate: false, reason: 'Request must be completed to rate' };
+    }
+
+    // Check if user is involved in this request
+    const isCustomer = request.customer_id === userId;
+    const isDriver = request.driver_id === userId;
+
+    if (!isCustomer && !isDriver) {
+      return { canRate: false, reason: 'You are not part of this transport' };
+    }
+
+    // Determine who to rate
+    const reviewedUserId = isCustomer ? request.driver_id : request.customer_id;
+
+    // Prevent self-rating
+    if (reviewedUserId === userId) {
+      return { canRate: false, reason: 'Cannot rate yourself' };
+    }
+
+    // Check for duplicate rating
+    if (this.hasUserRated(requestId, userId)) {
+      return { canRate: false, reason: 'You have already rated this transport' };
+    }
+
+    return {
+      canRate: true,
+      reviewedUserId,
+      tripId: request.trip_id,
+      isCustomer,
+      isDriver
+    };
+  },
+
+  // Get rating given by current user for a specific request
+  getMyRatingForRequest(requestId, userId) {
+    const stmt = db.prepare(`
+      SELECT * FROM ratings WHERE request_id = ? AND reviewer_id = ?
+    `);
+    return stmt.get(requestId, userId);
+  }
+};
+
+module.exports = { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel, RatingModel };

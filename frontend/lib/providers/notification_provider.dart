@@ -102,10 +102,10 @@ class NotificationNotifier extends AutoDisposeAsyncNotifier<NotificationState> {
       final newNotifications = response.notifications;
       final updatedNotifications = refresh
           ? newNotifications
-          : [
+          : <AppNotification>[
               ...(currentState?.notifications ?? []),
               ...newNotifications,
-            ] as List<AppNotification>;
+            ];
 
       final newState = NotificationState(
         notifications: updatedNotifications,

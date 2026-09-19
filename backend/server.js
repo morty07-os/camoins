@@ -4,7 +4,7 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const db = require('./database');
-const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel } = require('./models');
+const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel, RatingModel } = require('./models');
 const { generateToken, authMiddleware, verifyToken } = require('./auth');
 
 const app = express();
@@ -77,7 +77,8 @@ const NOTIFICATION_TYPES = {
   TRIP_COMPLETED: 'trip_completed',
   NEW_MESSAGE: 'new_message',
   NEW_REQUEST: 'new_request',
-  TRIP_CANCELLED: 'trip_cancelled'
+  TRIP_CANCELLED: 'trip_cancelled',
+  NEW_RATING: 'new_rating'
 };
 
 // ============================================
@@ -818,6 +819,111 @@ app.post('/api/trips', authMiddleware, isDriverMiddleware, (req, res) => {
     });
   } catch (error) {
     console.error('Create trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/trips/history - Get trip history for current user
+app.get('/api/trips/history', authMiddleware, (req, res) => {
+  try {
+    const userId = req.user.id;
+    const isDriver = req.user.role === 'DRIVER';
+
+    let history = [];
+
+    if (isDriver) {
+      // Driver history: completed trips they own
+      const trips = db.prepare(`
+        SELECT t.*, tr.id as request_id, tr.customer_id, tr.status as request_status,
+               p.full_name as customer_name, p.rating as customer_rating, p.rating_count as customer_rating_count,
+               tk.truck_type, tk.brand, tk.model
+        FROM trips t
+        LEFT JOIN transport_requests tr ON t.id = tr.trip_id AND tr.status = 'COMPLETED'
+        LEFT JOIN profiles p ON tr.customer_id = p.user_id
+        LEFT JOIN trucks tk ON t.truck_id = tk.id
+        WHERE t.driver_id = ? AND t.status = 'COMPLETED'
+        ORDER BY t.departure_date DESC
+      `).all(userId);
+
+      history = trips.map(trip => {
+        // Get rating given by driver (if any)
+        let myRating = null;
+        if (trip.request_id) {
+          myRating = RatingModel.getMyRatingForRequest(trip.request_id, userId);
+        }
+        return {
+          id: trip.id,
+          type: 'trip',
+          origin: trip.origin_name,
+          destination: trip.destination_name,
+          date: trip.departure_date,
+          status: trip.status,
+          otherParty: trip.customer_id ? {
+            id: trip.customer_id,
+            name: trip.customer_name,
+            role: 'CUSTOMER',
+            rating: trip.customer_rating,
+            rating_count: trip.customer_rating_count
+          } : null,
+          truck: trip.truck_type ? {
+            type: trip.truck_type,
+            brand: trip.brand,
+            model: trip.model
+          } : null,
+          myRating: myRating ? { rating: myRating.rating, comment: myRating.comment } : null
+        };
+      });
+    } else {
+      // Customer history: completed requests they made
+      const requests = db.prepare(`
+        SELECT tr.*, t.id as trip_id, t.origin_name, t.destination_name, t.departure_date, t.status as trip_status,
+               t.driver_id, t.truck_id,
+               p.full_name as driver_name, p.rating as driver_rating, p.rating_count as driver_rating_count,
+               tk.truck_type, tk.brand, tk.model
+        FROM transport_requests tr
+        JOIN trips t ON tr.trip_id = t.id
+        LEFT JOIN profiles p ON t.driver_id = p.user_id
+        LEFT JOIN trucks tk ON t.truck_id = tk.id
+        WHERE tr.customer_id = ? AND tr.status = 'COMPLETED'
+        ORDER BY t.departure_date DESC
+      `).all(userId);
+
+      history = requests.map(req => {
+        // Get rating given by customer (if any)
+        let myRating = RatingModel.getMyRatingForRequest(req.id, userId);
+        return {
+          id: req.id,
+          type: 'request',
+          origin: req.origin_name,
+          destination: req.destination_name,
+          date: req.departure_date,
+          status: req.trip_status,
+          otherParty: req.driver_id ? {
+            id: req.driver_id,
+            name: req.driver_name,
+            role: 'DRIVER',
+            rating: req.driver_rating,
+            rating_count: req.driver_rating_count
+          } : null,
+          truck: req.truck_type ? {
+            type: req.truck_type,
+            brand: req.brand,
+            model: req.model
+          } : null,
+          myRating: myRating ? { rating: myRating.rating, comment: myRating.comment } : null
+        };
+      });
+    }
+
+    res.json({
+      success: true,
+      history
+    });
+  } catch (error) {
+    console.error('Get history error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -2329,6 +2435,133 @@ app.patch('/api/notifications/read-all', authMiddleware, (req, res) => {
 });
 
 // ============================================
+// RATINGS API ENDPOINTS
+// ============================================
+
+// POST /api/ratings - Create a rating
+app.post('/api/ratings', authMiddleware, (req, res) => {
+  try {
+    const { trip_id, request_id, reviewed_user_id, rating, comment } = req.body;
+
+    // Validate required fields
+    if (!trip_id || !request_id || !reviewed_user_id || rating === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'trip_id, request_id, reviewed_user_id, and rating are required'
+      });
+    }
+
+    // Validate rating range
+    const ratingValue = parseInt(rating);
+    if (isNaN(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be an integer between 1 and 5'
+      });
+    }
+
+    // Check if user can rate this request
+    const canRateResult = RatingModel.canRate(request_id, req.user.id);
+    if (!canRateResult.canRate) {
+      return res.status(403).json({
+        success: false,
+        message: canRateResult.reason
+      });
+    }
+
+    // Verify the reviewed_user_id matches the expected other party
+    if (canRateResult.reviewedUserId !== reviewed_user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid reviewed user'
+      });
+    }
+
+    // Create the rating
+    const ratingId = RatingModel.create({
+      trip_id,
+      request_id,
+      reviewer_id: req.user.id,
+      reviewed_user_id,
+      rating: ratingValue,
+      comment: comment || null
+    });
+
+    const createdRating = RatingModel.findById(ratingId);
+
+    // Update the reviewed user's profile rating average and count
+    const avgRating = RatingModel.getAverageRating(reviewed_user_id);
+    ProfileModel.update(reviewed_user_id, { rating: avgRating.avg, rating_count: avgRating.count });
+
+    // Notify the reviewed user
+    const reviewerProfile = ProfileModel.findByUserId(req.user.id);
+    createNotification(reviewed_user_id,
+      'Nouvelle évaluation',
+      `${reviewerProfile?.full_name || 'Quelqu\'un'} vous a évalué ${ratingValue} étoile${ratingValue > 1 ? 's' : ''}.`,
+      NOTIFICATION_TYPES.NEW_RATING,
+      ratingId,
+      null,
+      trip_id,
+      request_id
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Rating submitted successfully',
+      rating: createdRating
+    });
+  } catch (error) {
+    if (error.message && error.message.includes('UNIQUE constraint failed')) {
+      return res.status(409).json({
+        success: false,
+        message: 'You have already rated this transport'
+      });
+    }
+    console.error('Create rating error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/users/:id/ratings - Get all ratings for a user
+app.get('/api/users/:id/ratings', authMiddleware, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID'
+      });
+    }
+
+    // Check if user exists
+    const user = UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const ratings = RatingModel.findByUserId(userId);
+
+    res.json({
+      success: true,
+      ratings
+    });
+  } catch (error) {
+    console.error('Get user ratings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// ============================================
 // WebSocket (Socket.IO)
 // ============================================
 
@@ -2491,6 +2724,7 @@ const httpServer = server.listen(PORT, () => {
   console.log(`  PUT  /api/trips/:id`);
   console.log(`  DELETE /api/trips/:id`);
   console.log(`  POST /api/trips/:id/start | complete | cancel`);
+  console.log(`  GET  /api/trips/history`);
   console.log(`  POST /api/conversations`);
   console.log(`  GET  /api/conversations`);
   console.log(`  GET  /api/conversations/:id/messages`);
@@ -2499,5 +2733,7 @@ const httpServer = server.listen(PORT, () => {
   console.log(`  GET  /api/notifications`);
   console.log(`  PATCH /api/notifications/:id/read`);
   console.log(`  PATCH /api/notifications/read-all`);
+  console.log(`  POST /api/ratings`);
+  console.log(`  GET  /api/users/:id/ratings`);
   console.log(`✓ WebSocket: ws://localhost:${PORT}`);
 });

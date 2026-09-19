@@ -135,6 +135,14 @@ class CustomerHomePage extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
+                  leading: const Icon(Icons.local_shipping_outlined),
+                  title: const Text('Mes transports'),
+                  subtitle: const Text('Historique de vos livraisons terminées'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/customer-history'),
+                ),
+                const Divider(),
+                ListTile(
                   leading: const Icon(Icons.message_outlined),
                   title: const Text('Messages'),
                   subtitle: const Text('Vos conversations avec les transporteurs'),
