@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/app_config.dart';
 import '../models/user.dart';
 import '../models/truck.dart';
 import '../models/trip.dart';
 import '../models/transport_request.dart';
+import '../models/conversation.dart';
 import 'storage_service.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:5000/api';
+  /// REST base URL resolved from [AppConfig] (no hardcoded hosts).
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   Future<Map<String, String>> _authHeaders() async {
     final token = await StorageService().getToken();
@@ -835,5 +838,87 @@ class ApiService {
         'message': 'Cannot connect to the server',
       };
     }
+  }
+// ---- Chat (conversations & messages) ----
+
+  Future<List<Conversation>> getConversations() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/conversations'),
+      headers: await _authHeaders(),
+    ).timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return (data['conversations'] as List)
+          .map((c) => Conversation.fromJson(c as Map<String, dynamic>))
+          .toList();
+    }
+    throw Exception(_errorMessage(response.body, 'Failed to load conversations'));
+  }
+
+  Future<List<Message>> getMessages(int conversationId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/conversations/$conversationId/messages'),
+      headers: await _authHeaders(),
+    ).timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return (data['messages'] as List)
+          .map((m) => Message.fromJson(m as Map<String, dynamic>))
+          .toList();
+    }
+    throw Exception(_errorMessage(response.body, 'Failed to load messages'));
+  }
+
+  /// Creates a message through REST.
+  ///
+  /// This is the fallback path used when the socket is unavailable. Callers
+  /// should prefer the socket while connected so a message is never created
+  /// twice (see `ChatRepository.sendMessage`).
+  Future<Message> sendMessage(
+    int conversationId,
+    String message, {
+    String? clientId,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/conversations/$conversationId/messages'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'message': message,
+        if (clientId != null) 'client_id': clientId,
+      }),
+    ).timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 201 && data['success'] == true) {
+      return Message.fromJson(data['data'] as Map<String, dynamic>);
+    }
+    throw Exception(data['message'] ?? 'Failed to send message');
+  }
+
+  Future<void> markMessageAsRead(int messageId) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/messages/$messageId/read'),
+      headers: await _authHeaders(),
+    ).timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        _errorMessage(response.body, 'Failed to mark message as read'),
+      );
+    }
+  }
+
+  String _errorMessage(String body, String fallback) {
+    try {
+      final data = jsonDecode(body);
+      if (data is Map && data['message'] is String) {
+        return data['message'] as String;
+      }
+    } catch (_) {
+      /* keep fallback */
+    }
+    return fallback;
   }
 }

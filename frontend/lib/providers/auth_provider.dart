@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/chat_service.dart';
 import '../services/storage_service.dart';
 
 class AuthState {
@@ -131,6 +132,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // Drop the authenticated socket so no stale token stays connected.
+    await ChatService().disconnect();
     await _storageService.deleteToken();
     state = AuthState(isAuthenticated: false, isLoading: false);
   }

@@ -22,8 +22,13 @@ import 'pages/chat_page.dart';
 import 'models/trip.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
+import 'config/app_config.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Resolve the backend URL (runtime override / platform default) before the
+  // first network or socket call.
+  await AppConfig.load();
   runApp(const ProviderScope(child: BackhaulApp()));
 }
 

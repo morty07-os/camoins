@@ -1729,6 +1729,47 @@ app.post('/api/requests/:id/complete', authMiddleware, isDriverMiddleware, (req,
 
 // ---- CONVERSATIONS & MESSAGES (Chat) ----
 
+// A user can access a conversation only when they are one of its participants.
+function canAccessConversation(conversation, userId) {
+  return !!conversation && (conversation.driver_id === userId || conversation.customer_id === userId);
+}
+
+// Canonical shape of a message broadcast to conversation participants.
+function buildMessagePayload(message, clientId = null) {
+  return {
+    id: message.id,
+    conversation_id: message.conversation_id,
+    sender_id: message.sender_id,
+    sender_name: message.sender_name || 'Unknown',
+    message: message.message,
+    created_at: message.created_at,
+    read_at: message.read_at,
+    client_id: clientId
+  };
+}
+
+// Single source of truth for persisting and broadcasting a chat message.
+// Used by both the REST endpoint and the Socket.IO 'send-message' handler so a
+// message is created exactly once regardless of the transport used.
+function deliverMessage(conversationId, senderId, message, clientId = null) {
+  const messageId = MessageModel.create(conversationId, senderId, message);
+  const created = MessageModel.findById(messageId);
+  const payload = buildMessagePayload(created, clientId);
+  io.to(`conversation-${conversationId}`).emit('message-received', payload);
+  return payload;
+}
+
+// Let conversation participants know that messages have been read.
+function broadcastReadReceipt(conversationId, readerId, messageIds) {
+  if (!messageIds || messageIds.length === 0) return;
+  io.to(`conversation-${conversationId}`).emit('messages-read', {
+    conversation_id: conversationId,
+    reader_id: readerId,
+    message_ids: messageIds,
+    read_at: new Date().toISOString()
+  });
+}
+
 // POST /api/conversations - Create a conversation (after request is accepted)
 app.post('/api/conversations', authMiddleware, (req, res) => {
   try {
@@ -1843,18 +1884,26 @@ app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
       });
     }
 
-    if (req.user.id !== conversation.driver_id && req.user.id !== conversation.customer_id) {
+    if (!canAccessConversation(conversation, req.user.id)) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized access to conversation'
       });
     }
 
+    // Collect the messages about to be marked as read so the other
+    // participant can be notified with a read receipt.
+    const unreadIds = MessageModel.findByConversationId(conversationId, limit, offset)
+      .filter(m => m.sender_id !== req.user.id && m.read_at == null)
+      .map(m => m.id);
+
     // Mark all unread messages as read
     MessageModel.markConversationAsRead(conversationId, req.user.id);
 
-    // Get messages
+    // Get messages (read_at now populated for the messages just read)
     const messages = MessageModel.findByConversationId(conversationId, limit, offset);
+
+    broadcastReadReceipt(conversationId, req.user.id, unreadIds);
 
     res.json({
       success: true,
@@ -1873,7 +1922,7 @@ app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
 app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
   try {
     const conversationId = parseInt(req.params.id);
-    const { message } = req.body;
+    const { message, client_id } = req.body;
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({
@@ -1891,21 +1940,20 @@ app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
       });
     }
 
-    if (req.user.id !== conversation.driver_id && req.user.id !== conversation.customer_id) {
+    if (!canAccessConversation(conversation, req.user.id)) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized access to conversation'
       });
     }
 
-    // Create message
-    const messageId = MessageModel.create(conversationId, req.user.id, message.trim());
-    const newMessage = MessageModel.findById(messageId);
+    // Persist once and broadcast to every connected participant.
+    const payload = deliverMessage(conversationId, req.user.id, message.trim(), client_id || null);
 
     res.status(201).json({
       success: true,
       message: 'Message sent',
-      data: newMessage
+      data: payload
     });
   } catch (error) {
     console.error('Send message error:', error);
@@ -1931,16 +1979,23 @@ app.patch('/api/messages/:id/read', authMiddleware, (req, res) => {
 
     // Verify user has access to conversation
     const conversation = ConversationModel.findById(message.conversation_id);
-    if (!conversation || (req.user.id !== conversation.driver_id && req.user.id !== conversation.customer_id)) {
+    if (!canAccessConversation(conversation, req.user.id)) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized'
       });
     }
 
+    // Only the recipient of an unread message triggers a read receipt.
+    const shouldNotify = message.read_at == null && message.sender_id !== req.user.id;
+
     // Mark as read
     MessageModel.markAsRead(messageId);
     const updatedMessage = MessageModel.findById(messageId);
+
+    if (shouldNotify) {
+      broadcastReadReceipt(message.conversation_id, req.user.id, [messageId]);
+    }
 
     res.json({
       success: true,
@@ -1980,63 +2035,97 @@ io.on('connection', (socket) => {
   console.log(`✓ User ${socket.userId} connected`);
 
   // Join conversation room
-  socket.on('join-conversation', (conversationId) => {
+  socket.on('join-conversation', (incomingId) => {
+    const conversationId = parseInt(incomingId, 10);
     const conversation = ConversationModel.findById(conversationId);
 
     // Verify access
-    if (!conversation || (socket.userId !== conversation.driver_id && socket.userId !== conversation.customer_id)) {
+    if (!canAccessConversation(conversation, socket.userId)) {
       socket.emit('error', { message: 'Unauthorized' });
       return;
     }
 
     socket.join(`conversation-${conversationId}`);
     socket.conversationId = conversationId;
+    socket.emit('joined-conversation', { conversation_id: conversationId });
     console.log(`✓ User ${socket.userId} joined conversation ${conversationId}`);
   });
 
-  // Receive message
-  socket.on('send-message', (data) => {
+  // Receive message: persists once and broadcasts to the whole room.
+  socket.on('send-message', (data, ack) => {
     try {
-      const { conversationId, message } = data;
+      const conversationId = parseInt(data && data.conversationId, 10);
+      const message = data && data.message;
+      const clientId = data && data.clientId;
 
-      if (!conversationId || !message) {
+      if (!conversationId || !message || !String(message).trim()) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Missing required fields' });
         socket.emit('error', { message: 'Missing required fields' });
         return;
       }
 
       // Verify access
       const conversation = ConversationModel.findById(conversationId);
-      if (!conversation || (socket.userId !== conversation.driver_id && socket.userId !== conversation.customer_id)) {
+      if (!canAccessConversation(conversation, socket.userId)) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Unauthorized' });
         socket.emit('error', { message: 'Unauthorized' });
         return;
       }
 
-      // Save message
-      const messageId = MessageModel.create(conversationId, socket.userId, message);
-      const newMessage = MessageModel.findById(messageId);
+      const payload = deliverMessage(conversationId, socket.userId, String(message).trim(), clientId || null);
 
-      // Get sender profile
-      const sender = ProfileModel.findByUserId(socket.userId);
-
-      // Broadcast to conversation room
-      io.to(`conversation-${conversationId}`).emit('message-received', {
-        id: newMessage.id,
-        conversation_id: newMessage.conversation_id,
-        sender_id: newMessage.sender_id,
-        sender_name: sender?.full_name || 'Unknown',
-        message: newMessage.message,
-        created_at: newMessage.created_at,
-        read_at: newMessage.read_at
-      });
+      if (typeof ack === 'function') {
+        ack({ success: true, data: payload });
+      }
     } catch (error) {
       console.error('Send message error:', error);
+      if (typeof ack === 'function') ack({ success: false, error: 'Failed to send message' });
       socket.emit('error', { message: 'Failed to send message' });
     }
   });
 
+  // Typing indicator relayed to the other conversation participants only.
+  socket.on('typing', (data) => {
+    const conversationId = parseInt(data && data.conversationId, 10);
+    if (!conversationId) return;
+
+    const conversation = ConversationModel.findById(conversationId);
+    if (!canAccessConversation(conversation, socket.userId)) return;
+
+    const profile = ProfileModel.findByUserId(socket.userId);
+    socket.to(`conversation-${conversationId}`).emit('typing', {
+      conversation_id: conversationId,
+      user_id: socket.userId,
+      user_name: profile?.full_name || 'Unknown',
+      is_typing: !!(data && data.isTyping)
+    });
+  });
+
+  // Mark the whole conversation as read (socket equivalent of the REST PATCH).
+  socket.on('mark-read', (data) => {
+    const conversationId = parseInt(data && data.conversationId, 10);
+    if (!conversationId) return;
+
+    const conversation = ConversationModel.findById(conversationId);
+    if (!canAccessConversation(conversation, socket.userId)) return;
+
+    const unreadIds = MessageModel.findByConversationId(conversationId)
+      .filter(m => m.sender_id !== socket.userId && m.read_at == null)
+      .map(m => m.id);
+
+    const changed = MessageModel.markConversationAsRead(conversationId, socket.userId);
+    if (changed > 0) {
+      broadcastReadReceipt(conversationId, socket.userId, unreadIds);
+    }
+  });
+
   // Leave conversation
-  socket.on('leave-conversation', (conversationId) => {
+  socket.on('leave-conversation', (incomingId) => {
+    const conversationId = parseInt(incomingId, 10);
     socket.leave(`conversation-${conversationId}`);
+    if (socket.conversationId === conversationId) {
+      socket.conversationId = null;
+    }
     console.log(`✓ User ${socket.userId} left conversation ${conversationId}`);
   });
 
