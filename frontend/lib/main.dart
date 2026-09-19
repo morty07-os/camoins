@@ -19,6 +19,7 @@ import 'pages/request_form_page.dart';
 import 'pages/driver_requests_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/chat_page.dart';
+import 'pages/notifications_page.dart';
 import 'models/trip.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
@@ -216,6 +217,10 @@ class BackhaulApp extends ConsumerWidget {
             final conversationId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
             return ChatPage(conversationId: conversationId);
           },
+        ),
+        GoRoute(
+          path: '/notifications',
+          builder: (context, state) => const NotificationsPage(),
         ),
         GoRoute(
           path: '/profile',

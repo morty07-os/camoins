@@ -695,4 +695,79 @@ const MessageModel = {
   }
 };
 
-module.exports = { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel };
+// Notification model functions
+const NotificationModel = {
+  create(userId, notificationData) {
+    const stmt = db.prepare(`
+      INSERT INTO notifications (user_id, title, body, type, related_id)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      userId,
+      notificationData.title,
+      notificationData.body,
+      notificationData.type,
+      notificationData.related_id || null
+    );
+
+    return result.lastInsertRowid;
+  },
+
+  findByUserId(userId, limit = 50, offset = 0) {
+    const stmt = db.prepare(`
+      SELECT id, user_id, title, body, type, related_id, is_read, created_at
+      FROM notifications
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `);
+    return stmt.all(userId, limit, offset);
+  },
+
+  findById(id) {
+    const stmt = db.prepare(`
+      SELECT id, user_id, title, body, type, related_id, is_read, created_at
+      FROM notifications
+      WHERE id = ?
+    `);
+    return stmt.get(id);
+  },
+
+  markAsRead(id) {
+    const stmt = db.prepare(`
+      UPDATE notifications
+      SET is_read = 1
+      WHERE id = ?
+    `);
+    const result = stmt.run(id);
+    return result.changes > 0;
+  },
+
+  markAllAsRead(userId) {
+    const stmt = db.prepare(`
+      UPDATE notifications
+      SET is_read = 1
+      WHERE user_id = ? AND is_read = 0
+    `);
+    const result = stmt.run(userId);
+    return result.changes;
+  },
+
+  getUnreadCount(userId) {
+    const stmt = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM notifications
+      WHERE user_id = ? AND is_read = 0
+    `);
+    return stmt.get(userId);
+  },
+
+  delete(id) {
+    const stmt = db.prepare(`DELETE FROM notifications WHERE id = ?`);
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+};
+
+module.exports = { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel };

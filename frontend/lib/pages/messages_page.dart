@@ -10,6 +10,7 @@ import '../services/chat_repository.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../widgets/app_avatar.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/states.dart';
 
 final conversationsProvider = FutureProvider<List<Conversation>>((ref) async {
@@ -57,7 +58,12 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
     final currentUserId = ref.watch(authProvider).currentUser?.id;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Messages')),
+      appBar: AppBar(
+        title: const Text('Messages'),
+        actions: [
+          const NotificationIcon(),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(conversationsProvider);

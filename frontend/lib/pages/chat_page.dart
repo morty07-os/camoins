@@ -9,6 +9,7 @@ import '../services/chat_repository.dart';
 import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/states.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
@@ -284,6 +285,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Discussion'),
+        actions: [
+          const NotificationIcon(),
+        ],
         bottom: _isConnected
             ? null
             : PreferredSize(

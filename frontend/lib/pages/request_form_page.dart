@@ -3,6 +3,7 @@ import '../models/trip.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/location_field.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/section_title.dart';
 
 class RequestFormPage extends StatefulWidget {
@@ -111,6 +112,9 @@ class _RequestFormPageState extends State<RequestFormPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Demander ce transport'),
+        actions: [
+          const NotificationIcon(),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),

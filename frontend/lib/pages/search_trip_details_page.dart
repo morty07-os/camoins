@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/search_result.dart';
-import '../models/trip.dart';
 import '../theme/app_theme.dart';
 import '../widgets/info_row.dart';
+import '../widgets/notification_icon.dart';
 import '../widgets/section_title.dart';
 import '../widgets/status_badge.dart';
 
@@ -35,7 +35,12 @@ class SearchTripDetailsPage extends StatelessWidget {
 
     if (result == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Détails du trajet')),
+        appBar: AppBar(
+          title: const Text('Détails du trajet'),
+          actions: [
+            const NotificationIcon(),
+          ],
+        ),
         body: const Center(child: Text('Trajet non disponible')),
       );
     }
@@ -47,6 +52,9 @@ class SearchTripDetailsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Détails du trajet'),
+        actions: [
+          const NotificationIcon(),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

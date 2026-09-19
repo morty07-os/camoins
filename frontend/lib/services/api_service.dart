@@ -6,6 +6,7 @@ import '../models/truck.dart';
 import '../models/trip.dart';
 import '../models/transport_request.dart';
 import '../models/conversation.dart';
+import '../models/notification.dart';
 import 'storage_service.dart';
 
 class ApiService {
@@ -920,5 +921,70 @@ class ApiService {
       /* keep fallback */
     }
     return fallback;
+  }
+
+  // ---- Notifications ----
+
+  Future<NotificationResponse> getNotifications({int limit = 50, int offset = 0}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/notifications').replace(
+        queryParameters: {
+          'limit': limit.toString(),
+          'offset': offset.toString(),
+        },
+      );
+      final response = await http.get(
+        uri,
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return NotificationResponse.fromJson(data);
+      } else {
+        throw Exception(data['message'] ?? 'Failed to get notifications');
+      }
+    } catch (e) {
+      throw Exception('Cannot connect to the server');
+    }
+  }
+
+  Future<AppNotification> markNotificationAsRead(int id) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/notifications/$id/read'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return AppNotification.fromJson(data['notification'] as Map<String, dynamic>);
+      } else {
+        throw Exception(data['message'] ?? 'Failed to mark notification as read');
+      }
+    } catch (e) {
+      throw Exception('Cannot connect to the server');
+    }
+  }
+
+  Future<int> markAllNotificationsAsRead() async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/notifications/read-all'),
+        headers: await _authHeaders(),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data['updated_count'] as int? ?? 0;
+      } else {
+        throw Exception(data['message'] ?? 'Failed to mark all notifications as read');
+      }
+    } catch (e) {
+      throw Exception('Cannot connect to the server');
+    }
   }
 }
