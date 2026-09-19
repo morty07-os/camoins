@@ -42,6 +42,14 @@ async function createNotification(userId, title, body, type, relatedId = null, c
     // Get the created notification
     const notification = NotificationModel.findById(notificationId);
 
+    // Ensure timestamp is ISO 8601 UTC for WebSocket emission
+    if (notification && notification.created_at) {
+      const dt = new Date(notification.created_at);
+      if (!isNaN(dt.getTime())) {
+        notification.created_at = dt.toISOString();
+      }
+    }
+
     // Send real-time notification via WebSocket if user is connected
     // We can emit to a user-specific room
     io.to(`user-${userId}`).emit('notification', notification);
@@ -1939,14 +1947,21 @@ function canAccessConversation(conversation, userId) {
 
 // Canonical shape of a message broadcast to conversation participants.
 function buildMessagePayload(message, clientId = null) {
+  // Ensure timestamps are ISO 8601 UTC (e.g., 2026-09-19T16:04:32.000Z)
+  const toISO = (ts) => {
+    if (!ts) return null;
+    const dt = new Date(ts);
+    return isNaN(dt.getTime()) ? ts : dt.toISOString();
+  };
+
   return {
     id: message.id,
     conversation_id: message.conversation_id,
     sender_id: message.sender_id,
     sender_name: message.sender_name || 'Unknown',
     message: message.message,
-    created_at: message.created_at,
-    read_at: message.read_at,
+    created_at: toISO(message.created_at),
+    read_at: toISO(message.read_at),
     client_id: clientId
   };
 }
