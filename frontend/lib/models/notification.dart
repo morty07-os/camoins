@@ -5,6 +5,9 @@ class AppNotification {
   final String body;
   final String type;
   final int? relatedId;
+  final int? conversationId;
+  final int? tripId;
+  final int? requestId;
   final bool isRead;
   final String createdAt;
 
@@ -15,6 +18,9 @@ class AppNotification {
     required this.body,
     required this.type,
     this.relatedId,
+    this.conversationId,
+    this.tripId,
+    this.requestId,
     required this.isRead,
     required this.createdAt,
   });
@@ -27,6 +33,9 @@ class AppNotification {
       body: json['body'] as String,
       type: json['type'] as String,
       relatedId: json['related_id'] as int?,
+      conversationId: json['conversation_id'] as int?,
+      tripId: json['trip_id'] as int?,
+      requestId: json['request_id'] as int?,
       isRead: (json['is_read'] as int? ?? 0) == 1,
       createdAt: json['created_at'] as String,
     );
@@ -40,6 +49,9 @@ class AppNotification {
       'body': body,
       'type': type,
       'related_id': relatedId,
+      'conversation_id': conversationId,
+      'trip_id': tripId,
+      'request_id': requestId,
       'is_read': isRead ? 1 : 0,
       'created_at': createdAt,
     };

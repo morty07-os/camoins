@@ -160,11 +160,27 @@ function initializeDatabase() {
       body TEXT NOT NULL,
       type TEXT NOT NULL,
       related_id INTEGER,
+      conversation_id INTEGER,
+      trip_id INTEGER,
+      request_id INTEGER,
       is_read INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Migration: Add missing columns if they don't exist (for existing databases)
+  const columns = db.prepare("PRAGMA table_info(notifications)").all();
+  const columnNames = columns.map(c => c.name);
+  if (!columnNames.includes('conversation_id')) {
+    db.exec('ALTER TABLE notifications ADD COLUMN conversation_id INTEGER');
+  }
+  if (!columnNames.includes('trip_id')) {
+    db.exec('ALTER TABLE notifications ADD COLUMN trip_id INTEGER');
+  }
+  if (!columnNames.includes('request_id')) {
+    db.exec('ALTER TABLE notifications ADD COLUMN request_id INTEGER');
+  }
 
   console.log('✓ Database tables initialized');
 }

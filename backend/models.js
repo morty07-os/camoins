@@ -699,8 +699,8 @@ const MessageModel = {
 const NotificationModel = {
   create(userId, notificationData) {
     const stmt = db.prepare(`
-      INSERT INTO notifications (user_id, title, body, type, related_id)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO notifications (user_id, title, body, type, related_id, conversation_id, trip_id, request_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -708,7 +708,10 @@ const NotificationModel = {
       notificationData.title,
       notificationData.body,
       notificationData.type,
-      notificationData.related_id || null
+      notificationData.related_id || null,
+      notificationData.conversation_id || null,
+      notificationData.trip_id || null,
+      notificationData.request_id || null
     );
 
     return result.lastInsertRowid;
@@ -716,7 +719,7 @@ const NotificationModel = {
 
   findByUserId(userId, limit = 50, offset = 0) {
     const stmt = db.prepare(`
-      SELECT id, user_id, title, body, type, related_id, is_read, created_at
+      SELECT id, user_id, title, body, type, related_id, conversation_id, trip_id, request_id, is_read, created_at
       FROM notifications
       WHERE user_id = ?
       ORDER BY created_at DESC
@@ -727,7 +730,7 @@ const NotificationModel = {
 
   findById(id) {
     const stmt = db.prepare(`
-      SELECT id, user_id, title, body, type, related_id, is_read, created_at
+      SELECT id, user_id, title, body, type, related_id, conversation_id, trip_id, request_id, is_read, created_at
       FROM notifications
       WHERE id = ?
     `);
