@@ -83,6 +83,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isAuthenticated: true,
         isLoading: false,
       );
+      
+      // Process any pending notification after successful login
+      // Note: We need a BuildContext to navigate, so this will be handled in the login page
       return true;
     } else {
       state = state.copyWith(

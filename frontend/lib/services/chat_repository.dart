@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/conversation.dart';
+import '../models/notification.dart';
 import 'api_service.dart';
 import 'chat_service.dart';
 import 'storage_service.dart';
@@ -26,6 +27,7 @@ class ChatRepository {
   Stream<ReadReceipt> get readReceipts => _chat.readReceipts;
   Stream<TypingEvent> get typingEvents => _chat.typingEvents;
   Stream<bool> get connectionState => _chat.connectionState;
+  Stream<AppNotification> get notifications => _chat.notifications;
 
   bool get isConnected => _chat.isConnected;
 

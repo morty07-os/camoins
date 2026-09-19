@@ -5,6 +5,7 @@ import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 
 import '../config/app_config.dart';
 import '../models/conversation.dart';
+import '../models/notification.dart';
 
 /// A "messages read" broadcast emitted by the server.
 class ReadReceipt {
@@ -90,11 +91,13 @@ class ChatService {
   final _readController = StreamController<ReadReceipt>.broadcast();
   final _typingController = StreamController<TypingEvent>.broadcast();
   final _connectionController = StreamController<bool>.broadcast();
+  final _notificationController = StreamController<AppNotification>.broadcast();
 
   Stream<Message> get messages => _messageController.stream;
   Stream<ReadReceipt> get readReceipts => _readController.stream;
   Stream<TypingEvent> get typingEvents => _typingController.stream;
   Stream<bool> get connectionState => _connectionController.stream;
+  Stream<AppNotification> get notifications => _notificationController.stream;
 
   bool get isConnected => _connected;
   /// Connects (or reconnects) to the socket using [token].
@@ -191,6 +194,13 @@ class ChatService {
         if (!_typingController.isClosed) _typingController.add(event);
       }
     });
+
+    socket.on('notification', (dynamic data) {
+      if (data is Map) {
+        final notification = AppNotification.fromJson(Map<String, dynamic>.from(data));
+        if (!_notificationController.isClosed) _notificationController.add(notification);
+      }
+    });
   }
 
   void _setConnected(bool value) {
@@ -255,6 +265,10 @@ class ChatService {
     _token = null;
     _url = null;
     _desiredConversations.clear();
+
+    if (!_notificationController.isClosed) {
+      await _notificationController.close();
+    }
 
     if (socket != null) {
       try {

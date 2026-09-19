@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+import '../services/notification_navigation_service.dart';
 import '../widgets/section_title.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -49,6 +50,22 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           content: Text(error ?? 'Échec de la création du compte'),
         ),
       );
+      return;
+    }
+
+    // Process pending notification after successful registration
+    if (success && mounted) {
+      final user = ref.read(authProvider).currentUser;
+      if (user != null) {
+        final pendingNotification = await NotificationNavigationService.getPendingNotification();
+        if (pendingNotification != null && mounted) {
+          await NotificationNavigationService.handleNotificationTap(
+            pendingNotification,
+            context,
+            user,
+          );
+        }
+      }
     }
     // Navigation will be handled by router redirect
   }

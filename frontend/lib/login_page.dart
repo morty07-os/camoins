@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../services/notification_navigation_service.dart';
 import 'theme/app_theme.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -41,6 +42,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           content: Text(error ?? 'Échec de la connexion'),
         ),
       );
+      return;
+    }
+
+    // Process pending notification after successful login
+    if (success && mounted) {
+      final user = ref.read(authProvider).currentUser;
+      if (user != null) {
+        final pendingNotification = await NotificationNavigationService.getPendingNotification();
+        if (pendingNotification != null && mounted) {
+          await NotificationNavigationService.handleNotificationTap(
+            pendingNotification,
+            context,
+            user,
+          );
+        }
+      }
     }
     // Navigation will be handled by router redirect
   }

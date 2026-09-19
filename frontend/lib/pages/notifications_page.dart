@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../models/notification.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
+import '../../services/notification_navigation_service.dart';
 
 class NotificationsPage extends ConsumerStatefulWidget {
   const NotificationsPage({super.key});
@@ -90,33 +92,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   Future<void> _onRefresh() async {
     await _loadNotifications(refresh: true);
-  }
-
-  Future<void> _markAsRead(AppNotification notification, int index) async {
-    if (notification.isRead) return;
-
-    try {
-      await _apiService.markNotificationAsRead(notification.id);
-      setState(() {
-        _notifications[index] = AppNotification(
-          id: notification.id,
-          userId: notification.userId,
-          title: notification.title,
-          body: notification.body,
-          type: notification.type,
-          relatedId: notification.relatedId,
-          isRead: true,
-          createdAt: notification.createdAt,
-        );
-        _unreadCount = (_unreadCount - 1).clamp(0, _unreadCount);
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to mark as read: $e')),
-        );
-      }
-    }
   }
 
   Future<void> _markAllAsRead() async {
@@ -291,7 +266,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                           return false;
                         },
                         child: InkWell(
-                          onTap: () => _markAsRead(notification, index),
+                          onTap: () async {
+                            final currentUser = ref.read(authProvider).currentUser;
+                            await NotificationNavigationService.handleNotificationTap(
+                              notification,
+                              context,
+                              currentUser,
+                            );
+                          },
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 12),

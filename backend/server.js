@@ -26,14 +26,17 @@ app.use(express.json());
 // ============================================
 
 // Create notification for a user
-async function createNotification(userId, title, body, type, relatedId = null) {
+async function createNotification(userId, title, body, type, relatedId = null, conversationId = null, tripId = null, requestId = null) {
   try {
     // Create in database
     const notificationId = NotificationModel.create(userId, {
       title,
       body,
       type,
-      related_id: relatedId
+      related_id: relatedId,
+      conversation_id: conversationId,
+      trip_id: tripId,
+      request_id: requestId
     });
 
     // Get the created notification
@@ -51,9 +54,9 @@ async function createNotification(userId, title, body, type, relatedId = null) {
 }
 
 // Create notifications for multiple users
-async function createNotifications(userIds, title, body, type, relatedId = null) {
+async function createNotifications(userIds, title, body, type, relatedId = null, conversationId = null, tripId = null, requestId = null) {
   for (const userId of userIds) {
-    await createNotification(userId, title, body, type, relatedId);
+    await createNotification(userId, title, body, type, relatedId, conversationId, tripId, requestId);
   }
 }
 
@@ -935,7 +938,10 @@ app.post('/api/trips/:id/start', authMiddleware, isDriverMiddleware, (req, res) 
         'Transport Started',
         `Your transport from ${trip.origin_name} to ${trip.destination_name} has started.`,
         NOTIFICATION_TYPES.TRIP_STARTED,
-        trip.id
+        trip.id,
+        null,
+        trip.id,
+        null
       );
     }
 
@@ -982,7 +988,10 @@ app.post('/api/trips/:id/complete', authMiddleware, isDriverMiddleware, (req, re
         'Transport Completed',
         `Your transport from ${trip.origin_name} to ${trip.destination_name} has been completed.`,
         NOTIFICATION_TYPES.TRIP_COMPLETED,
-        trip.id
+        trip.id,
+        null,
+        trip.id,
+        null
       );
     }
 
@@ -1029,7 +1038,10 @@ app.post('/api/trips/:id/cancel', authMiddleware, isDriverMiddleware, (req, res)
         'Transport Cancelled',
         `The transport from ${trip.origin_name} to ${trip.destination_name} has been cancelled by the driver.`,
         NOTIFICATION_TYPES.TRIP_CANCELLED,
-        trip.id
+        trip.id,
+        null,
+        trip.id,
+        null
       );
     }
 
@@ -1512,6 +1524,9 @@ app.post('/api/requests', authMiddleware, (req, res) => {
       'New Transport Request',
       `${driverProfile?.full_name || 'A customer'} has requested transport from ${trip.origin_name} to ${trip.destination_name}.`,
       NOTIFICATION_TYPES.NEW_REQUEST,
+      requestId,
+      null,
+      trip.id,
       requestId
     );
 
@@ -1697,6 +1712,9 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
         'Request Accepted',
         `Your transport request for ${trip.origin_name} to ${trip.destination_name} has been accepted.`,
         NOTIFICATION_TYPES.REQUEST_ACCEPTED,
+        requestId,
+        conversation.id,
+        trip.id,
         requestId
       );
 
@@ -1771,6 +1789,9 @@ app.post('/api/requests/:id/reject', authMiddleware, isDriverMiddleware, (req, r
       'Request Rejected',
       `Your transport request for ${trip.origin_name} to ${trip.destination_name} has been rejected.`,
       NOTIFICATION_TYPES.REQUEST_REJECTED,
+      requestId,
+      null,
+      trip.id,
       requestId
     );
 
@@ -1834,6 +1855,9 @@ app.post('/api/requests/:id/cancel', authMiddleware, (req, res) => {
       'Request Cancelled',
       `The customer cancelled the transport request for ${trip.origin_name} to ${trip.destination_name}.`,
       NOTIFICATION_TYPES.REQUEST_CANCELLED,
+      requestId,
+      null,
+      trip.id,
       requestId
     );
 
@@ -2138,7 +2162,10 @@ app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
       `New message from ${senderProfile?.full_name || 'Someone'}`,
       message.trim().substring(0, 100),
       NOTIFICATION_TYPES.NEW_MESSAGE,
-      conversationId
+      conversationId,
+      conversationId,
+      null,
+      null
     );
 
     res.status(201).json({
