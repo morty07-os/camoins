@@ -1,6 +1,6 @@
 class Conversation {
   final int id;
-  final int requestId;
+  final int? requestId;
   final int driverId;
   final int customerId;
   final String createdAt;
@@ -10,7 +10,7 @@ class Conversation {
   final String? lastMessageSenderName;
   final String? otherUserName;
   final int unreadCount;
-  final String requestStatus;
+  final String? requestStatus;
 
   Conversation({
     required this.id,
@@ -31,9 +31,9 @@ class Conversation {
     final lastMessage = json['last_message'];
     return Conversation(
       id: json['id'],
-      requestId: json['request_id'],
-      driverId: json['driver_id'],
-      customerId: json['customer_id'],
+      requestId: _asIntOrNull(json['request_id']),
+      driverId: _asInt(json['driver_id']),
+      customerId: _asInt(json['customer_id']),
       createdAt: json['created_at'],
       lastMessage: lastMessage?['message'],
       lastMessageTime: lastMessage?['created_at'],
@@ -41,7 +41,7 @@ class Conversation {
       lastMessageSenderName: lastMessage?['sender_name'],
       otherUserName: json['other_user_name'],
       unreadCount: json['unread_count'] ?? 0,
-      requestStatus: json['request_status'],
+      requestStatus: json['request_status']?.toString(),
     );
   }
 
@@ -49,6 +49,14 @@ class Conversation {
 
   bool isLastMessageMine(int? userId) =>
       userId != null && lastMessageSenderId == userId;
+
+  static int _asInt(dynamic value) =>
+      value is int ? value : int.tryParse('$value') ?? 0;
+
+  static int? _asIntOrNull(dynamic value) {
+    if (value == null) return null;
+    return value is int ? value : int.tryParse('$value');
+  }
 }
 
 enum MessageStatus { sending, sent, failed }
@@ -146,4 +154,3 @@ class Message {
     return int.tryParse('$value') ?? 0;
   }
 }
-

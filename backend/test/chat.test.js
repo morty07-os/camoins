@@ -120,8 +120,21 @@ async function run() {
   report('customer sends transport request', res.status === 201);
   const requestId = res.data.request.id;
 
+  res = await api('POST', '/conversations/find-or-create', customer, {
+    otherUserId: Number((await api('GET', '/auth/me', driver)).data.user.id),
+    requestId,
+  });
+  report(
+    'customer find-or-create creates the conversation before acceptance',
+    res.status === 200 && !!res.data.conversation,
+  );
+  const firstConversationId = res.data.conversation.id;
+
   res = await api('POST', `/requests/${requestId}/accept`, driver);
-  report('accepting request creates a conversation', res.status === 200 && !!res.data.conversation);
+  report(
+    'accepting request reuses the existing conversation',
+    res.status === 200 && res.data.conversation.id === firstConversationId,
+  );
   const conversationId = res.data.conversation.id;
 
   res = await api('GET', `/conversations/${conversationId}/messages`, driver);
@@ -177,6 +190,43 @@ async function run() {
     'unread count clears once messages are read',
     !!driverConversation && driverConversation.unread_count === 0,
     `unread=${driverConversation && driverConversation.unread_count}`,
+  );
+
+  // A later request from the same customer to the same driver must reuse the
+  // conversation and update its latest request metadata.
+  res = await api('POST', '/trips', driver, {
+    truck_id: truckId,
+    origin_name: 'Blida',
+    destination_name: 'Setif',
+    departure_date: '2026-10-01',
+    available_weight: 5000,
+    available_volume: 40,
+  });
+  const secondTripId = res.data.trip.id;
+  res = await api('POST', '/requests', customer, {
+    trip_id: secondTripId,
+    requested_weight: 500,
+    pickup_location: 'Blida',
+    delivery_location: 'Setif',
+  });
+  const secondRequestId = res.data.request.id;
+  res = await api('POST', '/conversations/find-or-create', customer, {
+    otherUserId: Number((await api('GET', '/auth/me', driver)).data.user.id),
+    requestId: secondRequestId,
+  });
+  report(
+    'second request reuses the same conversation and updates latest request',
+    res.status === 200 &&
+      res.data.conversation.id === conversationId &&
+      res.data.conversation.request_id === secondRequestId,
+  );
+
+  res = await api('GET', '/conversations', driver);
+  const latestConversation = res.data.conversations.find((c) => c.id === conversationId);
+  report(
+    'conversation sidebar shows latest request status',
+    !!latestConversation && latestConversation.request_id === secondRequestId &&
+      latestConversation.request_status === 'PENDING',
   );
 
   // --- Access control

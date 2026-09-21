@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../models/trip.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -80,10 +81,29 @@ class _RequestFormPageState extends State<RequestFormPage> {
 
       if (mounted) {
         if (response['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Demande envoyée avec succès')),
-          );
-          Navigator.pop(context, true);
+          final request = response['request'];
+          try {
+            final conversation = await apiService.findOrCreateConversation(
+              otherUserId: widget.trip.driverId,
+              requestId: request.id,
+            );
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Demande envoyée avec succès')),
+            );
+            context.push('/messages', extra: conversation.id);
+          } catch (conversationError) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Demande créée, mais impossible d\'ouvrir la conversation: $conversationError',
+                ),
+              ),
+            );
+            Navigator.pop(context, true);
+          }
+          return;
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -270,7 +290,8 @@ class _RequestFormPageState extends State<RequestFormPage> {
                 controller: _cargoDescriptionController,
                 maxLines: 3,
                 decoration: const InputDecoration(
-                  hintText: 'Ex : Marchandises fragiles, nécessite un camion frigorifique…',
+                  hintText:
+                      'Ex : Marchandises fragiles, nécessite un camion frigorifique…',
                 ),
               ),
               const SizedBox(height: 24),
@@ -319,7 +340,8 @@ class _RequestFormPageState extends State<RequestFormPage> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: _isSubmitting ? null : () => Navigator.pop(context, false),
+                onPressed:
+                    _isSubmitting ? null : () => Navigator.pop(context, false),
                 child: const Text('ANNULER'),
               ),
             ),

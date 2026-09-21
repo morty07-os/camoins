@@ -91,7 +91,9 @@ class BackhaulApp extends ConsumerWidget {
         }
 
         // A driver must not access customer screens
-        if (isAuthenticated && user?.isDriver == true && location.startsWith('/customer')) {
+        if (isAuthenticated &&
+            user?.isDriver == true &&
+            location.startsWith('/customer')) {
           return '/driver-home';
         }
 
@@ -195,7 +197,8 @@ class BackhaulApp extends ConsumerWidget {
         GoRoute(
           path: '/request-form/:tripId',
           builder: (context, state) {
-            final tripId = int.tryParse(state.pathParameters['tripId'] ?? '') ?? 0;
+            final tripId =
+                int.tryParse(state.pathParameters['tripId'] ?? '') ?? 0;
             final trip = state.extra as Trip?;
             if (trip == null) {
               return Scaffold(
@@ -219,12 +222,16 @@ class BackhaulApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/messages',
-          builder: (context, state) => const MessagesPage(),
+          builder: (context, state) => MessagesPage(
+            initialConversationId:
+                state.extra is int ? state.extra as int : null,
+          ),
         ),
         GoRoute(
           path: '/chat/:id',
           builder: (context, state) {
-            final conversationId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+            final conversationId =
+                int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
             return ChatPage(conversationId: conversationId);
           },
         ),

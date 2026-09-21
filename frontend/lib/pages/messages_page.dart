@@ -19,7 +19,9 @@ final conversationsProvider = FutureProvider<List<Conversation>>((ref) async {
 });
 
 class MessagesPage extends ConsumerStatefulWidget {
-  const MessagesPage({super.key});
+  final int? initialConversationId;
+
+  const MessagesPage({super.key, this.initialConversationId});
 
   @override
   ConsumerState<MessagesPage> createState() => _MessagesPageState();
@@ -37,8 +39,15 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
     repository.connect();
 
     // Keep the list fresh while the user is on this screen.
-    _messagesSubscription = repository.incomingMessages.listen((_) => _refresh());
+    _messagesSubscription =
+        repository.incomingMessages.listen((_) => _refresh());
     _readSubscription = repository.readReceipts.listen((_) => _refresh());
+
+    if (widget.initialConversationId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.push('/chat/${widget.initialConversationId}');
+      });
+    }
   }
 
   void _refresh() {
@@ -195,6 +204,17 @@ class _ConversationTile extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (conversation.requestStatus != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'REQUEST: ${conversation.requestStatus}',
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                       if (hasUnread) ...[
                         const SizedBox(width: 8),
                         Container(

@@ -30,17 +30,19 @@ class ApiService {
     required String role,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-          'full_name': fullName,
-          'phone': phone,
-          'role': role,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/register'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+              'full_name': fullName,
+              'phone': phone,
+              'role': role,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -69,14 +71,16 @@ class ApiService {
     required String password,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -133,17 +137,21 @@ class ApiService {
 
   Future<Map<String, dynamic>> getMyTrucks() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/trucks/my'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/trucks/my'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
         return {
           'success': true,
-          'trucks': (data['trucks'] as List? ?? []).map((truck) => Truck.fromJson(truck)).toList(),
+          'trucks': (data['trucks'] as List? ?? [])
+              .map((truck) => Truck.fromJson(truck))
+              .toList(),
         };
       } else {
         return {
@@ -161,10 +169,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> getTruck(int id) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/trucks/$id'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/trucks/$id'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -197,19 +207,21 @@ class ApiService {
     String imageUrl = '',
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/trucks'),
-        headers: await _authHeaders(),
-        body: jsonEncode({
-          'truck_type': truckType,
-          'brand': brand,
-          'model': model,
-          'max_weight': maxWeight,
-          'max_volume': maxVolume,
-          'registration_number': registrationNumber,
-          'image_url': imageUrl,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/trucks'),
+            headers: await _authHeaders(),
+            body: jsonEncode({
+              'truck_type': truckType,
+              'brand': brand,
+              'model': model,
+              'max_weight': maxWeight,
+              'max_volume': maxVolume,
+              'registration_number': registrationNumber,
+              'image_url': imageUrl,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -243,19 +255,21 @@ class ApiService {
     String imageUrl = '',
   }) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/trucks/$id'),
-        headers: await _authHeaders(),
-        body: jsonEncode({
-          'truck_type': truckType,
-          'brand': brand,
-          'model': model,
-          'max_weight': maxWeight,
-          'max_volume': maxVolume,
-          'registration_number': registrationNumber,
-          'image_url': imageUrl,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/trucks/$id'),
+            headers: await _authHeaders(),
+            body: jsonEncode({
+              'truck_type': truckType,
+              'brand': brand,
+              'model': model,
+              'max_weight': maxWeight,
+              'max_volume': maxVolume,
+              'registration_number': registrationNumber,
+              'image_url': imageUrl,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -280,10 +294,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> deleteTruck(int id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/trucks/$id'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/trucks/$id'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -307,10 +323,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> getMyTrips() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/trips/my'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/trips/my'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -337,10 +355,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> getTrip(int id) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/trips/$id'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/trips/$id'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -378,24 +398,26 @@ class ApiService {
     String description = '',
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/trips'),
-        headers: await _authHeaders(),
-        body: jsonEncode({
-          'truck_id': truckId,
-          'origin_name': originName,
-          'origin_lat': originLat,
-          'origin_lng': originLng,
-          'destination_name': destinationName,
-          'destination_lat': destinationLat,
-          'destination_lng': destinationLng,
-          'departure_date': departureDate,
-          'available_weight': availableWeight,
-          'available_volume': availableVolume,
-          'trip_type': tripType,
-          'description': description,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/trips'),
+            headers: await _authHeaders(),
+            body: jsonEncode({
+              'truck_id': truckId,
+              'origin_name': originName,
+              'origin_lat': originLat,
+              'origin_lng': originLng,
+              'destination_name': destinationName,
+              'destination_lat': destinationLat,
+              'destination_lng': destinationLng,
+              'departure_date': departureDate,
+              'available_weight': availableWeight,
+              'available_volume': availableVolume,
+              'trip_type': tripType,
+              'description': description,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -433,23 +455,25 @@ class ApiService {
     String description = '',
   }) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/trips/$id'),
-        headers: await _authHeaders(),
-        body: jsonEncode({
-          'truck_id': truckId,
-          'origin_name': originName,
-          'origin_lat': originLat,
-          'origin_lng': originLng,
-          'destination_name': destinationName,
-          'destination_lat': destinationLat,
-          'destination_lng': destinationLng,
-          'departure_date': departureDate,
-          'available_weight': availableWeight,
-          'available_volume': availableVolume,
-          'description': description,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/trips/$id'),
+            headers: await _authHeaders(),
+            body: jsonEncode({
+              'truck_id': truckId,
+              'origin_name': originName,
+              'origin_lat': originLat,
+              'origin_lng': originLng,
+              'destination_name': destinationName,
+              'destination_lat': destinationLat,
+              'destination_lng': destinationLng,
+              'departure_date': departureDate,
+              'available_weight': availableWeight,
+              'available_volume': availableVolume,
+              'description': description,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -474,10 +498,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> deleteTrip(int id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/trips/$id'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/trips/$id'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -501,11 +527,13 @@ class ApiService {
 
   Future<Map<String, dynamic>> _tripAction(int id, String action) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/trips/$id/$action'),
-        headers: await _authHeaders(),
-        body: jsonEncode({}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/trips/$id/$action'),
+            headers: await _authHeaders(),
+            body: jsonEncode({}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -533,8 +561,7 @@ class ApiService {
   Future<Map<String, dynamic>> completeTrip(int id) =>
       _tripAction(id, 'complete');
 
-  Future<Map<String, dynamic>> cancelTrip(int id) =>
-      _tripAction(id, 'cancel');
+  Future<Map<String, dynamic>> cancelTrip(int id) => _tripAction(id, 'cancel');
 
   Future<Map<String, dynamic>> updateProfile({
     required String token,
@@ -544,19 +571,21 @@ class ApiService {
     String? wilaya,
   }) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/profile'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'full_name': fullName,
-          'phone': phone,
-          'city': city,
-          'wilaya': wilaya,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/profile'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'full_name': fullName,
+              'phone': phone,
+              'city': city,
+              'wilaya': wilaya,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -593,11 +622,14 @@ class ApiService {
         queryParameters: {
           if (originLat != null) 'origin_lat': originLat.toString(),
           if (originLng != null) 'origin_lng': originLng.toString(),
-          if (destinationLat != null) 'destination_lat': destinationLat.toString(),
-          if (destinationLng != null) 'destination_lng': destinationLng.toString(),
+          if (destinationLat != null)
+            'destination_lat': destinationLat.toString(),
+          if (destinationLng != null)
+            'destination_lng': destinationLng.toString(),
           'date': date,
           'required_weight': requiredWeight.toString(),
-          if (requiredVolume != null) 'required_volume': requiredVolume.toString(),
+          if (requiredVolume != null)
+            'required_volume': requiredVolume.toString(),
         },
       );
 
@@ -638,18 +670,22 @@ class ApiService {
     String? deliveryLocation,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/requests'),
-        headers: await _authHeaders(),
-        body: jsonEncode({
-          'trip_id': tripId,
-          'requested_weight': requestedWeight,
-          if (requestedVolume != null) 'requested_volume': requestedVolume,
-          if (cargoDescription != null) 'cargo_description': cargoDescription,
-          if (pickupLocation != null) 'pickup_location': pickupLocation,
-          if (deliveryLocation != null) 'delivery_location': deliveryLocation,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/requests'),
+            headers: await _authHeaders(),
+            body: jsonEncode({
+              'trip_id': tripId,
+              'requested_weight': requestedWeight,
+              if (requestedVolume != null) 'requested_volume': requestedVolume,
+              if (cargoDescription != null)
+                'cargo_description': cargoDescription,
+              if (pickupLocation != null) 'pickup_location': pickupLocation,
+              if (deliveryLocation != null)
+                'delivery_location': deliveryLocation,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -674,10 +710,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> getMyRequests() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/requests/my'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/requests/my'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -704,10 +742,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> getRequest(int id) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/requests/$id'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/requests/$id'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -732,10 +772,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> acceptRequest(int id) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/requests/$id/accept'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/requests/$id/accept'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -760,10 +802,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> rejectRequest(int id) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/requests/$id/reject'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/requests/$id/reject'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -788,10 +832,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> cancelRequest(int id) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/requests/$id/cancel'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/requests/$id/cancel'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -816,10 +862,12 @@ class ApiService {
 
   Future<Map<String, dynamic>> completeRequest(int id) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/requests/$id/complete'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/requests/$id/complete'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -843,11 +891,38 @@ class ApiService {
   }
 // ---- Chat (conversations & messages) ----
 
+  Future<Conversation> findOrCreateConversation({
+    required int otherUserId,
+    int? requestId,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/conversations/find-or-create'),
+          headers: await _authHeaders(),
+          body: jsonEncode({
+            'otherUserId': otherUserId,
+            if (requestId != null) 'requestId': requestId,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(response.body);
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        data['success'] == true) {
+      return Conversation.fromJson(
+          data['conversation'] as Map<String, dynamic>);
+    }
+    throw Exception(
+        _errorMessage(response.body, 'Impossible d\'ouvrir la conversation'));
+  }
+
   Future<List<Conversation>> getConversations() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/conversations'),
-      headers: await _authHeaders(),
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/conversations'),
+          headers: await _authHeaders(),
+        )
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -855,14 +930,17 @@ class ApiService {
           .map((c) => Conversation.fromJson(c as Map<String, dynamic>))
           .toList();
     }
-    throw Exception(_errorMessage(response.body, 'Failed to load conversations'));
+    throw Exception(
+        _errorMessage(response.body, 'Failed to load conversations'));
   }
 
   Future<List<Message>> getMessages(int conversationId) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/conversations/$conversationId/messages'),
-      headers: await _authHeaders(),
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/conversations/$conversationId/messages'),
+          headers: await _authHeaders(),
+        )
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -883,14 +961,16 @@ class ApiService {
     String message, {
     String? clientId,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/conversations/$conversationId/messages'),
-      headers: await _authHeaders(),
-      body: jsonEncode({
-        'message': message,
-        if (clientId != null) 'client_id': clientId,
-      }),
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/conversations/$conversationId/messages'),
+          headers: await _authHeaders(),
+          body: jsonEncode({
+            'message': message,
+            if (clientId != null) 'client_id': clientId,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
 
     final data = jsonDecode(response.body);
     if (response.statusCode == 201 && data['success'] == true) {
@@ -900,10 +980,12 @@ class ApiService {
   }
 
   Future<void> markMessageAsRead(int messageId) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl/messages/$messageId/read'),
-      headers: await _authHeaders(),
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/messages/$messageId/read'),
+          headers: await _authHeaders(),
+        )
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -926,7 +1008,8 @@ class ApiService {
 
   // ---- Notifications ----
 
-  Future<NotificationResponse> getNotifications({int limit = 50, int offset = 0}) async {
+  Future<NotificationResponse> getNotifications(
+      {int limit = 50, int offset = 0}) async {
     try {
       final uri = Uri.parse('$baseUrl/notifications').replace(
         queryParameters: {
@@ -934,10 +1017,12 @@ class ApiService {
           'offset': offset.toString(),
         },
       );
-      final response = await http.get(
-        uri,
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            uri,
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -953,17 +1038,21 @@ class ApiService {
 
   Future<AppNotification> markNotificationAsRead(int id) async {
     try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl/notifications/$id/read'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/notifications/$id/read'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
-        return AppNotification.fromJson(data['notification'] as Map<String, dynamic>);
+        return AppNotification.fromJson(
+            data['notification'] as Map<String, dynamic>);
       } else {
-        throw Exception(data['message'] ?? 'Failed to mark notification as read');
+        throw Exception(
+            data['message'] ?? 'Failed to mark notification as read');
       }
     } catch (e) {
       throw Exception('Cannot connect to the server');
@@ -972,17 +1061,20 @@ class ApiService {
 
   Future<int> markAllNotificationsAsRead() async {
     try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl/notifications/read-all'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/notifications/read-all'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
         return data['updated_count'] as int? ?? 0;
       } else {
-        throw Exception(data['message'] ?? 'Failed to mark all notifications as read');
+        throw Exception(
+            data['message'] ?? 'Failed to mark all notifications as read');
       }
     } catch (e) {
       throw Exception('Cannot connect to the server');
@@ -999,17 +1091,19 @@ class ApiService {
     String? comment,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/ratings'),
-        headers: await _authHeaders(),
-        body: jsonEncode({
-          'trip_id': tripId,
-          'request_id': requestId,
-          'reviewed_user_id': reviewedUserId,
-          'rating': rating,
-          if (comment != null && comment.isNotEmpty) 'comment': comment,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/ratings'),
+            headers: await _authHeaders(),
+            body: jsonEncode({
+              'trip_id': tripId,
+              'request_id': requestId,
+              'reviewed_user_id': reviewedUserId,
+              'rating': rating,
+              if (comment != null && comment.isNotEmpty) 'comment': comment,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -1025,10 +1119,12 @@ class ApiService {
 
   Future<List<Rating>> getUserRatings(int userId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/users/$userId/ratings'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/users/$userId/ratings'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -1046,10 +1142,12 @@ class ApiService {
 
   Future<HistoryResponse> getTripHistory() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/trips/history'),
-        headers: await _authHeaders(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/trips/history'),
+            headers: await _authHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
