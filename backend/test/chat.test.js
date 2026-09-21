@@ -130,6 +130,15 @@ async function run() {
   );
   const firstConversationId = res.data.conversation.id;
 
+  res = await api('POST', '/conversations/find-or-create', customer, {
+    otherUserId: Number((await api('GET', '/auth/me', driver)).data.user.id),
+    requestId,
+  });
+  report(
+    'same request reuses the same conversation',
+    res.status === 200 && res.data.conversation.id === firstConversationId,
+  );
+
   res = await api('POST', `/requests/${requestId}/accept`, driver);
   report(
     'accepting request reuses the existing conversation',
@@ -192,8 +201,8 @@ async function run() {
     `unread=${driverConversation && driverConversation.unread_count}`,
   );
 
-  // A later request from the same customer to the same driver must reuse the
-  // conversation and update its latest request metadata.
+  // A later request from the same customer to the same driver gets its own
+  // conversation and must not inherit the first request's messages.
   res = await api('POST', '/trips', driver, {
     truck_id: truckId,
     origin_name: 'Blida',
@@ -214,19 +223,57 @@ async function run() {
     otherUserId: Number((await api('GET', '/auth/me', driver)).data.user.id),
     requestId: secondRequestId,
   });
+  const secondConversationId = res.data.conversation.id;
   report(
-    'second request reuses the same conversation and updates latest request',
+    'second request creates a separate conversation',
     res.status === 200 &&
-      res.data.conversation.id === conversationId &&
+      secondConversationId !== conversationId &&
       res.data.conversation.request_id === secondRequestId,
   );
 
-  res = await api('GET', '/conversations', driver);
-  const latestConversation = res.data.conversations.find((c) => c.id === conversationId);
+  res = await api('POST', `/requests/${secondRequestId}/accept`, driver);
   report(
-    'conversation sidebar shows latest request status',
-    !!latestConversation && latestConversation.request_id === secondRequestId &&
-      latestConversation.request_status === 'PENDING',
+    'accepting second request keeps its conversation identity',
+    res.status === 200 && res.data.conversation.id === secondConversationId,
+  );
+
+  res = await api('GET', '/notifications', customer);
+  const requestNotifications = res.data.notifications.filter(
+    (notification) => notification.type === 'request_accepted',
+  );
+  report(
+    'acceptance notifications point to the matching conversations',
+    res.status === 200 &&
+      requestNotifications.some((notification) =>
+        notification.request_id === requestId && notification.conversation_id === conversationId) &&
+      requestNotifications.some((notification) =>
+        notification.request_id === secondRequestId && notification.conversation_id === secondConversationId),
+  );
+
+  res = await api('POST', `/conversations/${secondConversationId}/messages`, customer, {
+    message: 'Message B',
+  });
+  report('second conversation accepts its own message', res.status === 201);
+
+  res = await api('GET', `/conversations/${conversationId}/messages`, driver);
+  report(
+    'first conversation does not contain second conversation messages',
+    res.status === 200 && !res.data.messages.some((m) => m.message === 'Message B'),
+  );
+  res = await api('GET', `/conversations/${secondConversationId}/messages`, driver);
+  report(
+    'second conversation does not contain first conversation messages',
+    res.status === 200 &&
+      res.data.messages.some((m) => m.message === 'Message B') &&
+      !res.data.messages.some((m) => m.message === 'Hello from customer'),
+  );
+
+  res = await api('GET', '/conversations', driver);
+  report(
+    'conversation sidebar shows both request conversations',
+    res.status === 200 &&
+      res.data.conversations.some((c) => c.id === conversationId && c.request_id === requestId) &&
+      res.data.conversations.some((c) => c.id === secondConversationId && c.request_id === secondRequestId),
   );
 
   // --- Access control
@@ -250,6 +297,14 @@ async function run() {
 
   res = await api('POST', `/conversations/${conversationId}/messages`, null, { message: 'hi' });
   report('POST message requires auth', res.status === 401);
+
+  res = await api('POST', '/conversations/find-or-create', customer, {
+    otherUserId: Number((await api('GET', '/auth/me', driver)).data.user.id),
+  });
+  report(
+    'find-or-create rejects missing requestId',
+    res.status === 400 && res.data.error === 'requestId is required',
+  );
 
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) {

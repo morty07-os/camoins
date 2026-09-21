@@ -1814,12 +1814,7 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
       const updatedRequest = TransportRequestModel.findById(requestId);
       const updatedTrip = TripModel.findById(request.trip_id);
 
-      // Reuse the participant conversation and associate the latest request.
-      const conversation = ConversationModel.findOrCreateByUsers(
-        trip.driver_id,
-        request.customer_id,
-        requestId
-      );
+      const conversation = ConversationModel.findOrCreateByRequestId(requestId);
 
       // Notify customer that request was accepted
       createNotification(request.customer_id,
@@ -2132,11 +2127,7 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
       });
     }
 
-    const conversation = ConversationModel.findOrCreateByUsers(
-      trip.driver_id,
-      request.customer_id,
-      request_id
-    );
+    const conversation = ConversationModel.findOrCreateByRequestId(request_id);
 
     res.status(201).json({
       success: true,
@@ -2152,14 +2143,15 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
   }
 });
 
-// POST /api/conversations/find-or-create - Find the authenticated user's pair conversation.
+// POST /api/conversations/find-or-create - Find or create a request conversation.
 app.post('/api/conversations/find-or-create', authMiddleware, (req, res) => {
   try {
     const otherUserId = Number(req.body.otherUserId ?? req.body.other_user_id);
     const requestIdValue = req.body.requestId ?? req.body.request_id;
-    const requestId = requestIdValue === undefined || requestIdValue === null
-      ? null
-      : Number(requestIdValue);
+    if (requestIdValue === undefined || requestIdValue === null || requestIdValue === '') {
+      return res.status(400).json({ success: false, error: 'requestId is required', message: 'requestId is required' });
+    }
+    const requestId = Number(requestIdValue);
     const otherUser = UserModel.findById(otherUserId);
 
     if (!Number.isInteger(otherUserId) || !otherUser || otherUserId === req.user.id) {
@@ -2168,21 +2160,19 @@ app.post('/api/conversations/find-or-create', authMiddleware, (req, res) => {
     if (otherUser.role === req.user.role) {
       return res.status(400).json({ success: false, message: 'Conversations require a driver and a customer' });
     }
-    if (requestId !== null && (!Number.isInteger(requestId) || !TransportRequestModel.findById(requestId))) {
+    if (!Number.isInteger(requestId) || !TransportRequestModel.findById(requestId)) {
       return res.status(400).json({ success: false, message: 'Invalid request ID' });
     }
 
     const driverId = req.user.role === 'DRIVER' ? req.user.id : otherUserId;
     const customerId = req.user.role === 'CUSTOMER' ? req.user.id : otherUserId;
-    if (requestId !== null) {
-      const request = TransportRequestModel.findById(requestId);
-      const trip = request && TripModel.findById(request.trip_id);
-      if (!request || !trip || request.customer_id !== customerId || trip.driver_id !== driverId) {
-        return res.status(403).json({ success: false, message: 'Request does not belong to this conversation' });
-      }
+    const request = TransportRequestModel.findById(requestId);
+    const trip = request && TripModel.findById(request.trip_id);
+    if (!request || !trip || request.customer_id !== customerId || trip.driver_id !== driverId) {
+      return res.status(403).json({ success: false, message: 'Request does not belong to this conversation' });
     }
 
-    const conversation = ConversationModel.findOrCreateByUsers(driverId, customerId, requestId);
+    const conversation = ConversationModel.findOrCreateByRequestId(requestId);
     res.status(200).json({ success: true, conversation });
   } catch (error) {
     console.error('Find or create conversation error:', error);

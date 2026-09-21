@@ -893,7 +893,7 @@ class ApiService {
 
   Future<Conversation> findOrCreateConversation({
     required int otherUserId,
-    int? requestId,
+    required int requestId,
   }) async {
     final response = await http
         .post(
@@ -901,7 +901,7 @@ class ApiService {
           headers: await _authHeaders(),
           body: jsonEncode({
             'otherUserId': otherUserId,
-            if (requestId != null) 'requestId': requestId,
+            'requestId': requestId,
           }),
         )
         .timeout(const Duration(seconds: 15));
