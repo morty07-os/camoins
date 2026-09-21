@@ -161,6 +161,16 @@ Error Response (401):
 - No navigation after login (shows success message)
 - Demo token only (no JWT implementation)
 
+## Authentication Rate Limiting
+
+The backend uses `express-rate-limit` for the authentication endpoints:
+
+- `POST /api/auth/login`: 5 failed attempts per IP in 15 minutes. Successful logins are not counted.
+- `POST /api/auth/register`: 10 attempts per IP in 1 hour.
+- Exceeded limits return HTTP 429 with a generic message.
+
+The limiter uses process memory, which is appropriate for the current single-instance deployment. A shared store should be configured before running multiple backend instances. When deployed behind one trusted proxy, set `TRUST_PROXY=true` so client IPs are identified correctly; it remains disabled by default for local development.
+
 ## Next Steps
 
 Future features will include:
