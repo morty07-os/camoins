@@ -106,6 +106,14 @@ The production frontend URL must be the real deployed URL; do not use the exampl
 values above. `FRONTEND_URL` is also accepted for a single origin. Requests from
 non-browser clients without an `Origin` header continue to work.
 
+### JWT configuration
+
+Set `JWT_SECRET` to a strong, unique secret in the production deployment environment
+(for Render, add it under the service's Environment variables). Also set
+`NODE_ENV=production`. The backend fails during startup if `JWT_SECRET` is missing
+in production. Local development may use the development fallback when `JWT_SECRET`
+is not set; that fallback is never used with `NODE_ENV=production`.
+
 ## Test Credentials
 
 **Email:** test@example.com  

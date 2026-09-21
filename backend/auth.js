@@ -1,6 +1,13 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'backhaul-secret-key-change-in-production';
+const DEVELOPMENT_JWT_SECRET = 'backhaul-secret-key-change-in-production';
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET is required when NODE_ENV=production. Configure it before starting the backend.');
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || DEVELOPMENT_JWT_SECRET;
 const JWT_EXPIRES_IN = '7d';
 
 function generateToken(user) {
