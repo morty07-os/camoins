@@ -206,7 +206,43 @@ function initializeDatabase() {
     db.exec('ALTER TABLE notifications ADD COLUMN request_id INTEGER');
   }
 
+  initializeIndexes();
+
   console.log('✓ Database tables initialized');
+}
+
+function initializeIndexes() {
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_trucks_driver_created
+      ON trucks (driver_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_trips_driver_created
+      ON trips (driver_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_cargaisons_driver_created
+      ON cargaisons (driver_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_transport_requests_trip_status
+      ON transport_requests (trip_id, status);
+    CREATE INDEX IF NOT EXISTS idx_transport_requests_customer_status_created
+      ON transport_requests (customer_id, status, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_conversations_driver
+      ON conversations (driver_id);
+    CREATE INDEX IF NOT EXISTS idx_conversations_customer
+      ON conversations (customer_id);
+
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation_created
+      ON messages (conversation_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_read_created
+      ON notifications (user_id, is_read, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_ratings_reviewed_created
+      ON ratings (reviewed_user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_ratings_reviewer_created
+      ON ratings (reviewer_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_ratings_trip_created
+      ON ratings (trip_id, created_at DESC);
+  `);
 }
 
 function migrateConversations() {
