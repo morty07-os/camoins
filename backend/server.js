@@ -8,19 +8,40 @@ const db = require('./database');
 const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel, RatingModel } = require('./models');
 const { generateToken, authMiddleware, verifyToken } = require('./auth');
 
+const localFrontendOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const configuredFrontendOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (configuredFrontendOrigins.includes(origin)) return true;
+  return configuredFrontendOrigins.length === 0 && localFrontendOriginPattern.test(origin);
+}
+
+function corsOrigin(origin, callback) {
+  if (isAllowedOrigin(origin)) {
+    return callback(null, true);
+  }
+  return callback(new Error('Origin not allowed by CORS'));
+}
+
+const corsOptions = {
+  origin: corsOrigin,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+};
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
+  cors: corsOptions
 });
 const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const authRateLimitResponse = {

@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node test/chat.test.js",
-    "test:auth-rate-limit": "node test/auth-rate-limit.test.js"
+    "test:auth-rate-limit": "node test/auth-rate-limit.test.js",
+    "test:cors": "node test/cors.test.js"
   },
   "keywords": [
     "backhaul",
