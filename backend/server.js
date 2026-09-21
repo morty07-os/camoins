@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const http = require('http');
 const socketIo = require('socket.io');
 const db = require('./database');
@@ -18,8 +19,31 @@ const io = socketIo(server, {
 const PORT = process.env.PORT || 5000;
 
 // Middleware
+app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
 app.use(cors());
 app.use(express.json());
+
+const authRateLimitResponse = {
+  success: false,
+  message: 'Too many authentication attempts. Please try again later.'
+};
+
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  handler: (req, res) => res.status(429).json(authRateLimitResponse)
+});
+
+const registrationRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => res.status(429).json(authRateLimitResponse)
+});
 
 // ============================================
 // NOTIFICATION HELPER FUNCTIONS
@@ -132,7 +156,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Register endpoint
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
   try {
     const { email, password, full_name, phone, role } = req.body;
 
@@ -219,7 +243,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Login endpoint
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 

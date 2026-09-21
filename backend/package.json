@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test/chat.test.js"
+    "test": "node test/chat.test.js",
+    "test:auth-rate-limit": "node test/auth-rate-limit.test.js"
   },
   "keywords": [
     "backhaul",
@@ -21,6 +22,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^8.7.0",
     "jsonwebtoken": "^9.0.3",
     "socket.io": "^4.8.3"
   }
