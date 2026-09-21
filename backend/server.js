@@ -1814,12 +1814,12 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
       const updatedRequest = TransportRequestModel.findById(requestId);
       const updatedTrip = TripModel.findById(request.trip_id);
 
-      // Create conversation for chat
-      let conversation = ConversationModel.findByRequestId(requestId);
-      if (!conversation) {
-        const conversationId = ConversationModel.create(requestId, trip.driver_id, request.customer_id);
-        conversation = ConversationModel.findById(conversationId);
-      }
+      // Reuse the participant conversation and associate the latest request.
+      const conversation = ConversationModel.findOrCreateByUsers(
+        trip.driver_id,
+        request.customer_id,
+        requestId
+      );
 
       // Notify customer that request was accepted
       createNotification(request.customer_id,
@@ -2094,7 +2094,7 @@ function broadcastReadReceipt(conversationId, readerId, messageIds) {
   });
 }
 
-// POST /api/conversations - Create a conversation (after request is accepted)
+// POST /api/conversations - Legacy accepted-request conversation endpoint
 app.post('/api/conversations', authMiddleware, (req, res) => {
   try {
     const { request_id } = req.body;
@@ -2115,14 +2115,6 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
       });
     }
 
-    // Request must be ACCEPTED
-    if (request.status !== 'ACCEPTED') {
-      return res.status(400).json({
-        success: false,
-        message: 'Conversation can only be created for accepted requests'
-      });
-    }
-
     // Get trip to find driver
     const trip = TripModel.findById(request.trip_id);
     if (!trip) {
@@ -2140,13 +2132,11 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
       });
     }
 
-    // Check if conversation already exists
-    let conversation = ConversationModel.findByRequestId(request_id);
-    if (!conversation) {
-      // Create new conversation
-      const conversationId = ConversationModel.create(request_id, trip.driver_id, request.customer_id);
-      conversation = ConversationModel.findById(conversationId);
-    }
+    const conversation = ConversationModel.findOrCreateByUsers(
+      trip.driver_id,
+      request.customer_id,
+      request_id
+    );
 
     res.status(201).json({
       success: true,
@@ -2159,6 +2149,44 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
       success: false,
       message: 'Internal server error'
     });
+  }
+});
+
+// POST /api/conversations/find-or-create - Find the authenticated user's pair conversation.
+app.post('/api/conversations/find-or-create', authMiddleware, (req, res) => {
+  try {
+    const otherUserId = Number(req.body.otherUserId ?? req.body.other_user_id);
+    const requestIdValue = req.body.requestId ?? req.body.request_id;
+    const requestId = requestIdValue === undefined || requestIdValue === null
+      ? null
+      : Number(requestIdValue);
+    const otherUser = UserModel.findById(otherUserId);
+
+    if (!Number.isInteger(otherUserId) || !otherUser || otherUserId === req.user.id) {
+      return res.status(400).json({ success: false, message: 'A valid other user is required' });
+    }
+    if (otherUser.role === req.user.role) {
+      return res.status(400).json({ success: false, message: 'Conversations require a driver and a customer' });
+    }
+    if (requestId !== null && (!Number.isInteger(requestId) || !TransportRequestModel.findById(requestId))) {
+      return res.status(400).json({ success: false, message: 'Invalid request ID' });
+    }
+
+    const driverId = req.user.role === 'DRIVER' ? req.user.id : otherUserId;
+    const customerId = req.user.role === 'CUSTOMER' ? req.user.id : otherUserId;
+    if (requestId !== null) {
+      const request = TransportRequestModel.findById(requestId);
+      const trip = request && TripModel.findById(request.trip_id);
+      if (!request || !trip || request.customer_id !== customerId || trip.driver_id !== driverId) {
+        return res.status(403).json({ success: false, message: 'Request does not belong to this conversation' });
+      }
+    }
+
+    const conversation = ConversationModel.findOrCreateByUsers(driverId, customerId, requestId);
+    res.status(200).json({ success: true, conversation });
+  } catch (error) {
+    console.error('Find or create conversation error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 

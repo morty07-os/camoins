@@ -597,14 +597,45 @@ const ConversationModel = {
     return stmt.get(requestId);
   },
 
+  findByUsers(driverId, customerId) {
+    const stmt = db.prepare(`
+      SELECT id, request_id, driver_id, customer_id, created_at
+      FROM conversations
+      WHERE driver_id = ? AND customer_id = ?
+    `);
+    return stmt.get(driverId, customerId);
+  },
+
+  findOrCreateByUsers(driverId, customerId, requestId = null) {
+    const transaction = db.transaction(() => {
+      let conversation = this.findByUsers(driverId, customerId);
+      if (conversation) {
+        if (requestId !== null && requestId !== undefined && conversation.request_id !== requestId) {
+          db.prepare(`UPDATE conversations SET request_id = ? WHERE id = ?`).run(requestId, conversation.id);
+          conversation = this.findByUsers(driverId, customerId);
+        }
+        return conversation;
+      }
+
+      try {
+        const conversationId = this.create(requestId, driverId, customerId);
+        return this.findById(conversationId);
+      } catch (error) {
+        if (!String(error.message).includes('UNIQUE')) throw error;
+        return this.findByUsers(driverId, customerId);
+      }
+    });
+    return transaction();
+  },
+
   findByUserId(userId) {
     const stmt = db.prepare(`
       SELECT c.id, c.request_id, c.driver_id, c.customer_id, c.created_at,
-             tr.status as request_status,
+             tr.status as request_status, tr.id as latest_request_id,
              CASE WHEN c.driver_id = ? THEN p2.full_name ELSE p1.full_name END as other_user_name,
              CASE WHEN c.driver_id = ? THEN u2.id ELSE u1.id END as other_user_id
       FROM conversations c
-      JOIN transport_requests tr ON c.request_id = tr.id
+      LEFT JOIN transport_requests tr ON c.request_id = tr.id
       LEFT JOIN profiles p1 ON c.customer_id = p1.user_id
       LEFT JOIN profiles p2 ON c.driver_id = p2.user_id
       LEFT JOIN users u1 ON c.customer_id = u1.id

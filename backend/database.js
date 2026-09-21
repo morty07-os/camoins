@@ -127,13 +127,14 @@ function initializeDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      request_id INTEGER NOT NULL UNIQUE,
+      request_id INTEGER,
       driver_id INTEGER NOT NULL,
       customer_id INTEGER NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (request_id) REFERENCES transport_requests(id) ON DELETE CASCADE,
       FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE
+      FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(driver_id, customer_id)
     )
   `);
 
@@ -188,6 +189,8 @@ function initializeDatabase() {
     )
   `);
 
+  migrateConversations();
+
   // Migration: Add missing columns if they don't exist (for existing databases)
   const columns = db.prepare("PRAGMA table_info(notifications)").all();
   const columnNames = columns.map(c => c.name);
@@ -202,6 +205,69 @@ function initializeDatabase() {
   }
 
   console.log('✓ Database tables initialized');
+}
+
+function migrateConversations() {
+  const columns = db.prepare('PRAGMA table_info(conversations)').all();
+  const requestColumn = columns.find(column => column.name === 'request_id');
+  const indexes = db.prepare('PRAGMA index_list(conversations)').all();
+  const hasPairUniqueIndex = indexes.some(index => {
+    if (!index.unique) return false;
+    const indexedColumns = db.prepare(`PRAGMA index_info('${index.name.replace(/'/g, "''")}')`).all();
+    return indexedColumns.map(column => column.name).join(',') === 'driver_id,customer_id';
+  });
+
+  if (requestColumn && requestColumn.notnull === 0 && hasPairUniqueIndex) return;
+
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.transaction(() => {
+      db.exec(`
+        ALTER TABLE conversations RENAME TO conversations_legacy;
+        CREATE TABLE conversations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          request_id INTEGER,
+          driver_id INTEGER NOT NULL,
+          customer_id INTEGER NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (request_id) REFERENCES transport_requests(id) ON DELETE CASCADE,
+          FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+          UNIQUE(driver_id, customer_id)
+        );
+        INSERT INTO conversations (id, request_id, driver_id, customer_id, created_at)
+        SELECT c.id, c.request_id, c.driver_id, c.customer_id, c.created_at
+        FROM conversations_legacy c
+        WHERE c.id = (
+          SELECT c2.id FROM conversations_legacy c2
+          WHERE c2.driver_id = c.driver_id AND c2.customer_id = c.customer_id
+          ORDER BY c2.created_at DESC, c2.id DESC LIMIT 1
+        );
+        CREATE TEMP TABLE conversation_id_map AS
+        SELECT legacy.id AS legacy_id, canonical.id AS canonical_id
+        FROM conversations_legacy legacy
+        JOIN conversations canonical
+          ON canonical.driver_id = legacy.driver_id
+         AND canonical.customer_id = legacy.customer_id;
+        UPDATE messages
+        SET conversation_id = (
+          SELECT canonical_id FROM conversation_id_map
+          WHERE legacy_id = messages.conversation_id
+        )
+        WHERE conversation_id IN (SELECT legacy_id FROM conversation_id_map);
+        UPDATE notifications
+        SET conversation_id = (
+          SELECT canonical_id FROM conversation_id_map
+          WHERE legacy_id = notifications.conversation_id
+        )
+        WHERE conversation_id IN (SELECT legacy_id FROM conversation_id_map);
+        DROP TABLE conversations_legacy;
+        DROP TABLE conversation_id_map;
+      `);
+    })();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
 }
 
 // Initialize on load
