@@ -91,6 +91,21 @@ cd frontend
 flutter run -d chrome --web-port 3000
 ```
 
+### CORS configuration
+
+Express and Socket.IO use the same trusted-origin policy. For local development,
+leave `FRONTEND_URLS` unset; `localhost` and `127.0.0.1` frontend origins are
+allowed. For production, set `FRONTEND_URLS` to the exact frontend origin or a
+comma-separated list of exact origins, for example:
+
+```text
+FRONTEND_URLS=https://your-actual-frontend.example,https://another-frontend.example
+```
+
+The production frontend URL must be the real deployed URL; do not use the example
+values above. `FRONTEND_URL` is also accepted for a single origin. Requests from
+non-browser clients without an `Origin` header continue to work.
+
 ## Test Credentials
 
 **Email:** test@example.com  
