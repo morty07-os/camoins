@@ -597,6 +597,28 @@ const ConversationModel = {
     return stmt.get(requestId);
   },
 
+  findOrCreateByRequestId(requestId) {
+    const transaction = db.transaction(() => {
+      const request = TransportRequestModel.findById(requestId);
+      if (!request) throw new Error('Request not found');
+
+      const trip = TripModel.findById(request.trip_id);
+      if (!trip) throw new Error('Trip not found');
+
+      const existing = this.findByRequestId(requestId);
+      if (existing) return existing;
+
+      try {
+        const conversationId = this.create(requestId, trip.driver_id, request.customer_id);
+        return this.findById(conversationId);
+      } catch (error) {
+        if (!String(error.message).includes('UNIQUE')) throw error;
+        return this.findByRequestId(requestId);
+      }
+    });
+    return transaction();
+  },
+
   findByUsers(driverId, customerId) {
     const stmt = db.prepare(`
       SELECT id, request_id, driver_id, customer_id, created_at
@@ -604,28 +626,6 @@ const ConversationModel = {
       WHERE driver_id = ? AND customer_id = ?
     `);
     return stmt.get(driverId, customerId);
-  },
-
-  findOrCreateByUsers(driverId, customerId, requestId = null) {
-    const transaction = db.transaction(() => {
-      let conversation = this.findByUsers(driverId, customerId);
-      if (conversation) {
-        if (requestId !== null && requestId !== undefined && conversation.request_id !== requestId) {
-          db.prepare(`UPDATE conversations SET request_id = ? WHERE id = ?`).run(requestId, conversation.id);
-          conversation = this.findByUsers(driverId, customerId);
-        }
-        return conversation;
-      }
-
-      try {
-        const conversationId = this.create(requestId, driverId, customerId);
-        return this.findById(conversationId);
-      } catch (error) {
-        if (!String(error.message).includes('UNIQUE')) throw error;
-        return this.findByUsers(driverId, customerId);
-      }
-    });
-    return transaction();
   },
 
   findByUserId(userId) {

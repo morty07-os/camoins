@@ -1,5 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 // Initialize database
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'backhaul.db');
@@ -127,14 +128,15 @@ function initializeDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      request_id INTEGER,
+      request_id INTEGER NOT NULL,
       driver_id INTEGER NOT NULL,
       customer_id INTEGER NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (request_id) REFERENCES transport_requests(id) ON DELETE CASCADE,
       FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
-      UNIQUE(driver_id, customer_id)
+      UNIQUE(request_id)
     )
   `);
 
@@ -216,52 +218,161 @@ function migrateConversations() {
     const indexedColumns = db.prepare(`PRAGMA index_info('${index.name.replace(/'/g, "''")}')`).all();
     return indexedColumns.map(column => column.name).join(',') === 'driver_id,customer_id';
   });
+  const hasRequestUniqueIndex = indexes.some(index => {
+    if (!index.unique) return false;
+    const indexedColumns = db.prepare(`PRAGMA index_info('${index.name.replace(/'/g, "''")}')`).all();
+    return indexedColumns.map(column => column.name).join(',') === 'request_id';
+  });
 
-  if (requestColumn && requestColumn.notnull === 0 && hasPairUniqueIndex) return;
+  if (requestColumn && requestColumn.notnull === 1 && hasRequestUniqueIndex && !hasPairUniqueIndex) return;
+
+  const backupPath = `${dbPath}.pre-conversation-migration-${Date.now()}.bak`;
+  fs.copyFileSync(dbPath, backupPath);
 
   db.pragma('foreign_keys = OFF');
   try {
     db.transaction(() => {
       db.exec(`
-        ALTER TABLE conversations RENAME TO conversations_legacy;
-        CREATE TABLE conversations (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+        CREATE TABLE conversation_archive (
+          id INTEGER PRIMARY KEY,
           request_id INTEGER,
           driver_id INTEGER NOT NULL,
           customer_id INTEGER NOT NULL,
+          created_at DATETIME,
+          archived_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          archive_reason TEXT NOT NULL
+        );
+        CREATE TABLE message_archive (
+          id INTEGER PRIMARY KEY,
+          conversation_id INTEGER NOT NULL,
+          sender_id INTEGER NOT NULL,
+          message TEXT NOT NULL,
+          created_at DATETIME,
+          read_at DATETIME,
+          archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE notification_archive (
+          id INTEGER PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          type TEXT NOT NULL,
+          related_id INTEGER,
+          conversation_id INTEGER,
+          trip_id INTEGER,
+          request_id INTEGER,
+          is_read INTEGER NOT NULL,
+          created_at DATETIME,
+          archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE conversations_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          request_id INTEGER NOT NULL,
+          driver_id INTEGER NOT NULL,
+          customer_id INTEGER NOT NULL,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (request_id) REFERENCES transport_requests(id) ON DELETE CASCADE,
           FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
           FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
-          UNIQUE(driver_id, customer_id)
+          UNIQUE(request_id)
         );
-        INSERT INTO conversations (id, request_id, driver_id, customer_id, created_at)
-        SELECT c.id, c.request_id, c.driver_id, c.customer_id, c.created_at
-        FROM conversations_legacy c
-        WHERE c.id = (
-          SELECT c2.id FROM conversations_legacy c2
-          WHERE c2.driver_id = c.driver_id AND c2.customer_id = c.customer_id
-          ORDER BY c2.created_at DESC, c2.id DESC LIMIT 1
-        );
-        CREATE TEMP TABLE conversation_id_map AS
-        SELECT legacy.id AS legacy_id, canonical.id AS canonical_id
-        FROM conversations_legacy legacy
-        JOIN conversations canonical
-          ON canonical.driver_id = legacy.driver_id
-         AND canonical.customer_id = legacy.customer_id;
+        CREATE TEMP TABLE conversation_id_map
+        (legacy_id INTEGER PRIMARY KEY, canonical_id INTEGER NOT NULL);
+      `);
+
+      const legacyConversations = db.prepare(`
+        SELECT c.*, tr.id AS matching_request_id
+        FROM conversations c
+        LEFT JOIN transport_requests tr
+          ON tr.id = c.request_id
+         AND tr.customer_id = c.customer_id
+         AND tr.trip_id IN (SELECT id FROM trips WHERE driver_id = c.driver_id)
+        ORDER BY c.id
+      `).all();
+      const validByRequest = new Map();
+      const insertConversation = db.prepare(`
+        INSERT INTO conversations_new (id, request_id, driver_id, customer_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `);
+      const mapConversation = db.prepare(
+        'INSERT INTO conversation_id_map (legacy_id, canonical_id) VALUES (?, ?)',
+      );
+      const archiveConversation = db.prepare(`
+        INSERT OR REPLACE INTO conversation_archive
+          (id, request_id, driver_id, customer_id, created_at, archive_reason)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const conversation of legacyConversations) {
+        if (conversation.matching_request_id === null) {
+          archiveConversation.run(
+            conversation.id,
+            conversation.request_id,
+            conversation.driver_id,
+            conversation.customer_id,
+            conversation.created_at,
+            conversation.request_id === null ? 'missing_request_id' : 'invalid_request_participants',
+          );
+          continue;
+        }
+
+        let canonical = validByRequest.get(conversation.request_id);
+        if (!canonical) {
+          canonical = conversation;
+          validByRequest.set(conversation.request_id, canonical);
+          insertConversation.run(
+            conversation.id,
+            conversation.request_id,
+            conversation.driver_id,
+            conversation.customer_id,
+            conversation.created_at,
+          );
+        } else {
+          archiveConversation.run(
+            conversation.id,
+            conversation.request_id,
+            conversation.driver_id,
+            conversation.customer_id,
+            conversation.created_at,
+            'duplicate_request_id_merged_into_lowest_id',
+          );
+        }
+        mapConversation.run(conversation.id, canonical.id);
+      }
+
+      db.exec(`
+        INSERT INTO message_archive (id, conversation_id, sender_id, message, created_at, read_at)
+        SELECT m.id, m.conversation_id, m.sender_id, m.message, m.created_at, m.read_at
+        FROM messages m
+        WHERE m.conversation_id NOT IN (SELECT legacy_id FROM conversation_id_map);
+        INSERT INTO notification_archive
+          (id, user_id, title, body, type, related_id, conversation_id, trip_id, request_id, is_read, created_at)
+        SELECT n.id, n.user_id, n.title, n.body, n.type, n.related_id, n.conversation_id,
+               n.trip_id, n.request_id, n.is_read, n.created_at
+        FROM notifications n
+        WHERE n.conversation_id IS NOT NULL
+          AND n.conversation_id NOT IN (SELECT legacy_id FROM conversation_id_map);
         UPDATE messages
         SET conversation_id = (
           SELECT canonical_id FROM conversation_id_map
           WHERE legacy_id = messages.conversation_id
         )
         WHERE conversation_id IN (SELECT legacy_id FROM conversation_id_map);
+        DELETE FROM messages
+        WHERE conversation_id NOT IN (SELECT canonical_id FROM conversation_id_map);
         UPDATE notifications
         SET conversation_id = (
           SELECT canonical_id FROM conversation_id_map
           WHERE legacy_id = notifications.conversation_id
         )
         WHERE conversation_id IN (SELECT legacy_id FROM conversation_id_map);
-        DROP TABLE conversations_legacy;
+        UPDATE notifications
+        SET conversation_id = NULL
+        WHERE conversation_id IS NOT NULL
+          AND conversation_id NOT IN (SELECT canonical_id FROM conversation_id_map);
+        DROP TABLE conversations;
+        ALTER TABLE conversations_new RENAME TO conversations;
         DROP TABLE conversation_id_map;
       `);
     })();
