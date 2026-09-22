@@ -114,6 +114,10 @@ class ApiService {
         },
       ).timeout(const Duration(seconds: 10));
 
+      if (response.statusCode == 401) {
+        return {'success': false, 'unauthorized': true};
+      }
+
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {

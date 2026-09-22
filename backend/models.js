@@ -175,9 +175,14 @@ const TruckModel = {
   },
 
   delete(id) {
-    const stmt = db.prepare(`DELETE FROM trucks WHERE id = ?`);
-    const result = stmt.run(id);
-    return result.changes > 0;
+    return db.transaction(() => {
+      if (db.prepare(`SELECT 1 FROM transport_requests r JOIN trips t ON t.id = r.trip_id WHERE t.truck_id = ? LIMIT 1`).get(id)) {
+        const error = new Error('Cannot delete a truck with booking history');
+        error.status = 409;
+        throw error;
+      }
+      return db.prepare(`DELETE FROM trucks WHERE id = ?`).run(id).changes > 0;
+    })();
   }
 };
 
@@ -276,9 +281,34 @@ const TripModel = {
   },
 
   delete(id) {
-    const stmt = db.prepare(`DELETE FROM trips WHERE id = ?`);
-    const result = stmt.run(id);
-    return result.changes > 0;
+    return db.transaction(() => {
+      if (db.prepare(`SELECT 1 FROM transport_requests WHERE trip_id = ? LIMIT 1`).get(id)) {
+        const error = new Error('Cannot delete a trip with booking history');
+        error.status = 409;
+        throw error;
+      }
+      return db.prepare(`DELETE FROM trips WHERE id = ?`).run(id).changes > 0;
+    })();
+  },
+
+  finishWithRequests(id, status) {
+    return db.transaction(() => {
+      const trip = this.findById(id);
+      const allowed = status === 'COMPLETED' ? ['IN_PROGRESS'] : ['PUBLISHED', 'IN_PROGRESS'];
+      if (!['COMPLETED', 'CANCELLED'].includes(status) || !trip || !allowed.includes(trip.status)) {
+        const error = new Error('Invalid trip status transition');
+        error.status = 409;
+        throw error;
+      }
+      const requests = db.prepare(`SELECT id, customer_id, status FROM transport_requests
+        WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).all(id);
+      db.prepare(`UPDATE transport_requests SET status = CASE
+        WHEN status = 'ACCEPTED' AND ? = 'COMPLETED' THEN 'COMPLETED'
+        ELSE 'CANCELLED' END, updated_at = CURRENT_TIMESTAMP
+        WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).run(status, id);
+      this.updateStatus(id, status);
+      return requests;
+    })();
   }
 };
 
@@ -468,7 +498,7 @@ const TransportRequestModel = {
     const transaction = db.transaction(() => {
       // Get request
       const request = db.prepare(`
-        SELECT requested_weight, requested_volume FROM transport_requests WHERE id = ?
+        SELECT trip_id, status, requested_weight, requested_volume FROM transport_requests WHERE id = ?
       `).get(requestId);
 
       if (!request) {
@@ -477,11 +507,23 @@ const TransportRequestModel = {
 
       // Get trip
       const trip = db.prepare(`
-        SELECT available_weight, available_volume FROM trips WHERE id = ?
+        SELECT status, available_weight, available_volume FROM trips WHERE id = ?
       `).get(tripId);
 
       if (!trip) {
         throw new Error('Trip not found');
+      }
+
+      if (request.trip_id !== tripId || request.status !== 'PENDING' || trip.status !== 'PUBLISHED') {
+        const error = new Error('Only pending requests on published trips can be accepted');
+        error.status = 409;
+        throw error;
+      }
+      if (!Number.isFinite(request.requested_weight) || request.requested_weight <= 0 ||
+          (request.requested_volume !== null && (!Number.isFinite(request.requested_volume) || request.requested_volume <= 0))) {
+        const error = new Error('Requested weight and volume must be positive finite numbers');
+        error.status = 400;
+        throw error;
       }
 
       // Check capacity
@@ -489,7 +531,7 @@ const TransportRequestModel = {
         throw new Error('Insufficient weight capacity');
       }
 
-      if (request.requested_volume && trip.available_volume !== null && trip.available_volume < request.requested_volume) {
+      if (request.requested_volume !== null && (trip.available_volume === null || trip.available_volume < request.requested_volume)) {
         throw new Error('Insufficient volume capacity');
       }
 
