@@ -180,9 +180,11 @@ app.get('/api/health', (req, res) => {
 app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
   try {
     const { email, password, full_name, phone, role } = req.body;
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const normalizedName = typeof full_name === 'string' ? full_name.trim() : '';
 
     // Validate required fields
-    if (!email || !password || !full_name || !role) {
+    if (!normalizedEmail || typeof password !== 'string' || !password || !normalizedName || !role) {
       return res.status(400).json({
         success: false,
         message: 'Email, password, full name, and role are required'
@@ -191,7 +193,7 @@ app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(normalizedEmail)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid email format'
@@ -215,7 +217,7 @@ app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = UserModel.findByEmail(email);
+    const existingUser = UserModel.findByEmail(normalizedEmail);
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -224,8 +226,8 @@ app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
     }
 
     // Create user with profile
-    const userId = await UserModel.create(email, password, role, {
-      full_name,
+    const userId = await UserModel.create(normalizedEmail, password, role, {
+      full_name: normalizedName,
       phone: phone || null,
       city: null,
       wilaya: null
@@ -267,9 +269,10 @@ app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
 app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
     // Validate required fields
-    if (!email || !password) {
+    if (!normalizedEmail || typeof password !== 'string' || !password) {
       return res.status(400).json({
         success: false,
         message: 'Email and password are required'
@@ -277,7 +280,7 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
     }
 
     // Verify credentials
-    const user = await UserModel.verifyPassword(email, password);
+    const user = await UserModel.verifyPassword(normalizedEmail, password);
     if (!user) {
       return res.status(401).json({
         success: false,
