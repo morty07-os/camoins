@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test/chat.test.js",
+    "test": "npm run test:auth && npm run test:trucks && npm run test:trips && npm run test:chat && npm run test:cors && npm run test:auth-rate-limit",
+    "test:auth": "node test/auth.test.js",
+    "test:trucks": "node test/trucks.test.js",
+    "test:trips": "node test/trips.test.js",
+    "test:chat": "node test/chat.test.js",
     "test:auth-rate-limit": "node test/auth-rate-limit.test.js",
     "test:cors": "node test/cors.test.js"
   },
