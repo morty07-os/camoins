@@ -9,12 +9,14 @@ class AuthState {
   final bool isAuthenticated;
   final bool isLoading;
   final String? error;
+  final bool sessionRestoreFailed;
 
   AuthState({
     this.currentUser,
     this.isAuthenticated = false,
     this.isLoading = false,
     this.error,
+    this.sessionRestoreFailed = false,
   });
 
   AuthState copyWith({
@@ -23,12 +25,14 @@ class AuthState {
     bool? isLoading,
     String? error,
     bool clearError = false,
+    bool? sessionRestoreFailed,
   }) {
     return AuthState(
       currentUser: currentUser ?? this.currentUser,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
+      sessionRestoreFailed: sessionRestoreFailed ?? this.sessionRestoreFailed,
     );
   }
 }
@@ -48,6 +52,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> loadCurrentUser() async {
+    state = state.copyWith(isLoading: true, clearError: true, sessionRestoreFailed: false);
     final token = await _storageService.getToken();
     if (token == null) {
       state = AuthState(isAuthenticated: false, isLoading: false);
@@ -61,9 +66,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isAuthenticated: true,
         isLoading: false,
       );
-    } else {
+    } else if (result['unauthorized'] == true) {
       await _storageService.deleteToken();
       state = AuthState(isAuthenticated: false, isLoading: false);
+    } else {
+      state = state.copyWith(
+        isLoading: false,
+        sessionRestoreFailed: true,
+        error: 'Impossible de vérifier votre session. Réessayez lorsque la connexion sera rétablie.',
+      );
     }
   }
 

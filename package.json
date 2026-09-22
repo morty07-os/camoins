@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Backhaul truck marketplace application",
   "scripts": {
+    "test": "npm --prefix backend test",
     "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
     "backend": "npm --prefix backend start",
     "frontend": "cd frontend && flutter run -d chrome --web-port 3000"

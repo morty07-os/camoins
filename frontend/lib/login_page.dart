@@ -158,6 +158,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 24),
+                        if (authState.sessionRestoreFailed) ...[
+                          Text(authState.error ?? 'Connexion indisponible'),
+                          TextButton.icon(
+                            onPressed: authState.isLoading
+                                ? null
+                                : () => ref.read(authProvider.notifier).loadCurrentUser(),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Réessayer ma session'),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,

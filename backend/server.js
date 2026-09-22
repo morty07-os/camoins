@@ -689,6 +689,7 @@ app.delete('/api/trucks/:id', authMiddleware, isDriverMiddleware, (req, res) => 
     });
   } catch (error) {
     console.error('Delete truck error:', error);
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -1061,6 +1062,7 @@ app.delete('/api/trips/:id', authMiddleware, isDriverMiddleware, (req, res) => {
     });
   } catch (error) {
     console.error('Delete trip error:', error);
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -1133,14 +1135,11 @@ app.post('/api/trips/:id/complete', authMiddleware, isDriverMiddleware, (req, re
       });
     }
 
-    TripModel.updateStatus(trip.id, 'COMPLETED');
+    const finishedRequests = TripModel.finishWithRequests(trip.id, 'COMPLETED');
     const updatedTrip = TripModel.findById(trip.id);
 
     // Notify customers with accepted requests on this trip
-    const acceptedRequests = db.prepare(`
-      SELECT customer_id FROM transport_requests
-      WHERE trip_id = ? AND status = 'ACCEPTED'
-    `).all(trip.id);
+    const acceptedRequests = finishedRequests.filter(request => request.status === 'ACCEPTED');
 
     for (const req of acceptedRequests) {
       createNotification(req.customer_id,
@@ -1152,6 +1151,12 @@ app.post('/api/trips/:id/complete', authMiddleware, isDriverMiddleware, (req, re
         trip.id,
         null
       );
+    }
+
+    for (const request of finishedRequests.filter(request => request.status === 'PENDING')) {
+      createNotification(request.customer_id, 'Request Cancelled',
+        'The trip has completed without accepting your request.',
+        NOTIFICATION_TYPES.REQUEST_CANCELLED, request.id, null, trip.id, request.id);
     }
 
     res.json({
@@ -1183,14 +1188,10 @@ app.post('/api/trips/:id/cancel', authMiddleware, isDriverMiddleware, (req, res)
       });
     }
 
-    TripModel.updateStatus(trip.id, 'CANCELLED');
+    const requests = TripModel.finishWithRequests(trip.id, 'CANCELLED');
     const updatedTrip = TripModel.findById(trip.id);
 
     // Notify customers with accepted/pending requests on this trip
-    const requests = db.prepare(`
-      SELECT customer_id FROM transport_requests
-      WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')
-    `).all(trip.id);
 
     for (const req of requests) {
       createNotification(req.customer_id,
@@ -1616,8 +1617,8 @@ app.post('/api/requests', authMiddleware, (req, res) => {
       });
     }
 
-    const weight = parseFloat(requested_weight);
-    if (isNaN(weight) || weight <= 0) {
+    const weight = requested_weight;
+    if (typeof weight !== 'number' || !Number.isFinite(weight) || weight <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Requested weight must be a positive number'
@@ -1656,8 +1657,11 @@ app.post('/api/requests', authMiddleware, (req, res) => {
       });
     }
 
-    const volume = requested_volume ? parseFloat(requested_volume) : null;
-    if (volume !== null && !isNaN(volume)) {
+    const volume = requested_volume ?? null;
+    if (volume !== null && (typeof volume !== 'number' || !Number.isFinite(volume) || volume <= 0)) {
+      return res.status(400).json({ success: false, message: 'Requested volume must be a positive finite number' });
+    }
+    if (volume !== null) {
       if (trip.available_volume === null || trip.available_volume < volume) {
         return res.status(400).json({
           success: false,
@@ -1880,8 +1884,8 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
         conversation: conversation
       });
     } catch (error) {
-      if (error.message.includes('Insufficient')) {
-        return res.status(409).json({
+      if (error.status || error.message.includes('Insufficient')) {
+        return res.status(error.status || 409).json({
           success: false,
           message: error.message
         });

@@ -1,206 +1,121 @@
-# Backhaul App - Step 1: Login
+# Camoins — Backhaul marketplace
 
-A truck backhaul marketplace application connecting drivers with customers for return-trip transport.
+Camoins connects drivers publishing return trips with customers who need cargo transport.
+The app has a Flutter frontend and a Node.js/Express API backed by SQLite, with Socket.IO
+for chat and live notifications.
 
-## Technology Stack
+## Features
 
-**Frontend:**
-- Flutter Web
-- Dart
-- Material 3
-- HTTP package
+- Registration and login with DRIVER and CUSTOMER accounts, bcrypt passwords and JWT sessions.
+- Driver profiles, trucks, return trips and cargo management.
+- Trip search, transport requests, capacity reservation and cancellation.
+- Conversations per request, chat, read receipts and notifications.
+- Trip history and ratings between transport participants.
 
-**Backend:**
-- Node.js
-- Express
-- CORS
-- dotenv
+## Project layout
 
-## Project Structure
+- `backend/server.js`: REST routes and Socket.IO handlers.
+- `backend/models.js`: database access and transactional booking operations.
+- `backend/database.js`: SQLite schema, indexes and existing schema migrations.
+- `backend/test/`: API and data integrity regression suites.
+- `frontend/lib/`: Flutter pages, widgets, Riverpod providers and services.
+- `frontend/test/`: model, provider and widget tests.
 
-```
-backhaul-app/
-├── frontend/          # Flutter Web application
-│   ├── lib/
-│   │   ├── main.dart
-│   │   └── login_page.dart
-│   └── pubspec.yaml
-├── backend/           # Node.js Express API
-│   ├── server.js
-│   ├── package.json
-│   └── .env
-├── package.json       # Root package with run scripts
-└── README.md
-```
+## Local setup
 
-## Prerequisites
+Install Node.js compatible with the locked better-sqlite3 dependency and a Flutter SDK
+compatible with `frontend/pubspec.yaml`. The backend tests require Node's built-in fetch.
 
-### Flutter Setup
+From the repository root:
 
-1. Download Flutter SDK from: https://docs.flutter.dev/get-started/install/windows
-2. Extract to `C:\src\flutter`
-3. Add `C:\src\flutter\bin` to your system PATH
-4. Restart terminal
-5. Run: `flutter doctor`
-6. Enable web: `flutter config --enable-web`
-
-### Node.js
-
-Ensure Node.js (v16+) and npm are installed.
-
-## Installation
-
-```bash
-# Install all dependencies
-npm install
-
-# Install backend dependencies
-cd backend
-npm install
-cd ..
-
-# Install Flutter dependencies
+```powershell
+npm ci
+npm --prefix backend ci
 cd frontend
 flutter pub get
 cd ..
-```
-
-## Running the Application
-
-### Option 1: Run both concurrently (recommended)
-
-```bash
 npm run dev
 ```
 
-This starts:
-- Backend on http://localhost:5000
-- Frontend on http://localhost:3000
+The API runs on port 5000 and Flutter Web on port 3000. Create an account through
+registration; there is no seeded demo login. To run components separately:
 
-### Option 2: Run separately
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-npm start
+```powershell
+npm run backend
+npm run frontend
 ```
 
-**Terminal 2 - Frontend:**
-```bash
+## Configuration
+
+Backend environment variables (also loaded from `.env` in the backend working directory):
+
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | HTTP and Socket.IO port; defaults to 5000. |
+| `DB_PATH` | SQLite file path; defaults to `backend/backhaul.db`. |
+| `JWT_SECRET` | Signing secret; required when `NODE_ENV=production`. |
+| `NODE_ENV` | Set to `production` in production. |
+| `FRONTEND_URLS` | Comma-separated exact trusted frontend origins. |
+| `FRONTEND_URL` | Single-origin alternative. |
+| `TRUST_PROXY` | Set to `true` only when behind one trusted reverse proxy. |
+
+Set a strong, unique JWT secret in production. The development fallback is only for
+local use. JWTs expire after seven days.
+
+Without configured origins, localhost and 127.0.0.1 browser origins are allowed.
+REST and Socket.IO share the same origin policy. Non-browser requests without an
+Origin header remain allowed. Set the real deployed frontend origins in production.
+
+The frontend accepts a backend origin without `/api`:
+
+```powershell
+flutter run -d chrome --web-port 3000 --dart-define=API_BASE_URL=http://localhost:5000
+```
+
+For deployment, pass the HTTPS backend origin when building the frontend. Defaults
+are `http://10.0.2.2:5000` for Android emulators and `http://localhost:5000` otherwise.
+A persisted `backend_url` preference can override the build-time value.
+
+SQLite must live on persistent storage in deployment. Back up the database before
+deployments or schema changes. Push notifications via Firebase are not implemented;
+current live notifications use Socket.IO.
+
+## Booking rules
+
+- Requests require positive finite numeric weight and, when provided, volume.
+- Acceptance requires a pending request and a published trip. Status and capacity
+  checks occur inside the same transaction as reservation.
+- Cancelling a trip cancels pending and accepted requests atomically.
+- Completing a trip completes accepted requests and cancels unanswered requests
+  atomically. Customers receive notifications for the resulting transitions.
+- Trucks and trips with any booking history cannot be deleted (HTTP 409), including
+  cancelled and completed bookings. Their conversations, messages and ratings remain.
+- A temporary session lookup failure preserves the saved token and offers retry.
+  An unauthorized response clears it; explicit logout also clears it.
+
+## Tests
+
+```powershell
+npm test
 cd frontend
-flutter run -d chrome --web-port 3000
+flutter test
+flutter analyze
 ```
 
-### CORS configuration
+`npm test` runs every backend `*.test.js` suite sequentially, including authentication
+rate limits, CORS, trucks, trips, chat and booking integrity. Suites use isolated test
+databases, not the application database. The booking integrity suite also verifies
+transaction rollback and preservation of chat history after blocked deletion.
 
-Express and Socket.IO use the same trusted-origin policy. For local development,
-leave `FRONTEND_URLS` unset; `localhost` and `127.0.0.1` frontend origins are
-allowed. For production, set `FRONTEND_URLS` to the exact frontend origin or a
-comma-separated list of exact origins, for example:
+Authentication limits are 5 failed logins per IP per 15 minutes and 10 registration
+attempts per IP per hour. Exceeding a limit returns HTTP 429. The limiter is in memory;
+configure a shared store before running multiple backend instances.
 
-```text
-FRONTEND_URLS=https://your-actual-frontend.example,https://another-frontend.example
-```
+## API overview
 
-The production frontend URL must be the real deployed URL; do not use the example
-values above. `FRONTEND_URL` is also accepted for a single origin. Requests from
-non-browser clients without an `Origin` header continue to work.
-
-### JWT configuration
-
-Set `JWT_SECRET` to a strong, unique secret in the production deployment environment
-(for Render, add it under the service's Environment variables). Also set
-`NODE_ENV=production`. The backend fails during startup if `JWT_SECRET` is missing
-in production. Local development may use the development fallback when `JWT_SECRET`
-is not set; that fallback is never used with `NODE_ENV=production`.
-
-## Test Credentials
-
-**Email:** test@example.com  
-**Password:** password123
-
-## API Endpoints
-
-### Health Check
-```
-GET http://localhost:5000/api/health
-```
-
-Response:
-```json
-{
-  "status": "ok"
-}
-```
-
-### Login
-```
-POST http://localhost:5000/api/login
-Content-Type: application/json
-```
-
-Request:
-```json
-{
-  "email": "test@example.com",
-  "password": "password123"
-}
-```
-
-Success Response (200):
-```json
-{
-  "success": true,
-  "message": "Login successful",
-  "token": "demo-token"
-}
-```
-
-Error Response (401):
-```json
-{
-  "success": false,
-  "message": "Invalid email or password"
-}
-```
-
-## Features Implemented
-
-✓ Backend Express server with CORS  
-✓ Login API endpoint with validation  
-✓ Health check endpoint  
-✓ Material 3 Flutter Web login page  
-✓ Responsive design (mobile & desktop)  
-✓ Form validation  
-✓ Loading states  
-✓ Error handling  
-✓ Success/error messages  
-
-## Development Notes
-
-- This is Step 1 only: Login functionality
-- No database yet (in-memory test user)
-- No registration, password reset, or dashboard
-- No navigation after login (shows success message)
-- Demo token only (no JWT implementation)
-
-## Authentication Rate Limiting
-
-The backend uses `express-rate-limit` for the authentication endpoints:
-
-- `POST /api/auth/login`: 5 failed attempts per IP in 15 minutes. Successful logins are not counted.
-- `POST /api/auth/register`: 10 attempts per IP in 1 hour.
-- Exceeded limits return HTTP 429 with a generic message.
-
-The limiter uses process memory, which is appropriate for the current single-instance deployment. A shared store should be configured before running multiple backend instances. When deployed behind one trusted proxy, set `TRUST_PROXY=true` so client IPs are identified correctly; it remains disabled by default for local development.
-
-## Next Steps
-
-Future features will include:
-- User registration
-- Dashboard
-- Truck/driver profiles
-- Trip posting
-- Customer connections
-- Real authentication with JWT
-- Database integration
+The base path is `/api`. Health is available at `GET /api/health`.
+Authentication uses `/auth/register`, `/auth/login` and `/auth/me`.
+Protected routes require `Authorization: Bearer <token>`.
+Other route groups include `/profile`, `/trucks`, `/trips`, `/cargaisons`,
+`/search/trips`, `/requests`, `/conversations`, `/notifications` and `/ratings`.
+See `backend/server.js` for request bodies, permissions and response formats.
