@@ -10,13 +10,13 @@ const insertUser = db.prepare(`
 const findUserByEmail = db.prepare(`
   SELECT id, email, role, created_at
   FROM users
-  WHERE email = ?
+  WHERE email = ? COLLATE NOCASE
 `);
 
 const findUserByEmailWithPassword = db.prepare(`
   SELECT id, email, password_hash, role, created_at
   FROM users
-  WHERE email = ?
+  WHERE email = ? COLLATE NOCASE
 `);
 
 const findUserById = db.prepare(`
