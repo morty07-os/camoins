@@ -106,6 +106,7 @@ async function run() {
   assert.equal((await api('POST', '/trips/' + tripId + '/start', driver)).status, 200);
   assert.equal((await api('POST', '/ratings', customer, body)).status, 403);
   assert.equal((await api('POST', '/trips/' + tripId + '/complete', driver)).status, 200);
+  assert.equal((await api('POST', '/requests/' + requestId + '/confirm', customer)).status, 200);
   const stranger = await api('POST', '/auth/register', null, {
     email: 'stranger@test.example', password: 'password123', full_name: 'Stranger', role: 'CUSTOMER'
   });
@@ -159,6 +160,7 @@ async function run() {
   await api('POST', '/requests/' + secondRequest + '/accept', driver);
   await api('POST', '/trips/' + secondTrip + '/start', driver);
   await api('POST', '/trips/' + secondTrip + '/complete', driver);
+  assert.equal((await api('POST', '/requests/' + secondRequest + '/confirm', customer)).status, 200);
   assert.equal((await api('POST', '/ratings', customer, { ...body, trip_id: secondTrip, request_id: secondRequest, rating: 4 })).status, 201);
   const updated = (await api('GET', '/auth/me', driver)).data.user.profile;
   assert.equal(updated.rating, 4.5);

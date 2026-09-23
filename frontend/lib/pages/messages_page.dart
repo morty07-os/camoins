@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/conversation.dart';
+import '../models/transport_request.dart';
+import '../providers/transport_updates_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/chat_repository.dart';
 import '../theme/app_theme.dart';
@@ -14,6 +16,7 @@ import '../widgets/notification_icon.dart';
 import '../widgets/states.dart';
 
 final conversationsProvider = FutureProvider<List<Conversation>>((ref) async {
+  ref.watch(transportUpdatesProvider);
   final repository = ref.watch(chatRepositoryProvider);
   return repository.getConversations();
 });
@@ -206,14 +209,14 @@ class _ConversationTile extends StatelessWidget {
                       ),
                       if (conversation.requestStatus != null) ...[
                         const SizedBox(height: 4),
-                        Text(
-                          'REQUEST: ${conversation.requestStatus}',
+                        Flexible(child: Text(
+                          TransportRequest.statusDisplayNames[conversation.requestStatus] ?? conversation.requestStatus!,
                           style: const TextStyle(
                             color: AppColors.primary,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                           ),
-                        ),
+                        )),
                       ],
                       if (hasUnread) ...[
                         const SizedBox(width: 8),

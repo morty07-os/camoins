@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../providers/transport_updates_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rating.dart';
-import '../services/api_service.dart';
+import '../providers/notification_provider.dart' show apiServiceProvider;
 import '../theme/app_theme.dart';
 import '../widgets/notification_icon.dart';
 import '../widgets/star_rating.dart';
@@ -33,7 +35,7 @@ class _CustomerHistoryPageState extends ConsumerState<CustomerHistoryPage> {
     });
 
     try {
-      final apiService = ApiService();
+      final apiService = ref.read(apiServiceProvider);
       final response = await apiService.getTripHistory();
       if (mounted) {
         setState(() {
@@ -70,6 +72,7 @@ class _CustomerHistoryPageState extends ConsumerState<CustomerHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(transportUpdatesProvider, (_, __) => _loadHistory());
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes transports'),
@@ -148,9 +151,13 @@ class _CustomerHistoryPageState extends ConsumerState<CustomerHistoryPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Vos transports terminés apparaîtront ici',
+                'Vos transports apparaîtront ici après confirmation de la réception dans leur conversation.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textSecondary),
+              ),
+              TextButton(
+                onPressed: () => context.push('/messages'),
+                child: const Text('Ouvrir mes conversations'),
               ),
             ],
           ),

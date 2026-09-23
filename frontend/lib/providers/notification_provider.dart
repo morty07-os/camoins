@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:backhaul_frontend/models/notification.dart';
 import 'package:backhaul_frontend/services/api_service.dart';
 import 'package:backhaul_frontend/services/chat_repository.dart';
+import 'transport_updates_provider.dart';
 
 /// State for the notification provider
 class NotificationState {
@@ -49,6 +50,11 @@ class NotificationNotifier extends AutoDisposeAsyncNotifier<NotificationState> {
 
     // Listen to real-time notifications
     _listenToRealtimeNotifications();
+    ref.onDispose(() => _notificationSubscription?.cancel());
+    ref.listen(transportUpdatesProvider, (_, __) {
+      // REST restores notifications missed while the socket/app was offline.
+      refresh().catchError((Object _) {});
+    });
 
     // Load initial notifications
     return _loadNotifications(refresh: true);

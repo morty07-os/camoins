@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../providers/transport_updates_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/transport_request.dart';
 import '../services/api_service.dart';
@@ -184,6 +185,7 @@ class _DriverRequestsPageState extends ConsumerState<DriverRequestsPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(transportUpdatesProvider, (_, __) => _loadRequests());
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes demandes'),

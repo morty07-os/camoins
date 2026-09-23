@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/conversation.dart';
 import '../providers/auth_provider.dart';
+import '../providers/transport_updates_provider.dart';
 import '../services/chat_repository.dart';
 import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
@@ -35,12 +36,30 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   String? _error;
   bool _isOtherTyping = false;
   bool _isConnected = true;
+  bool _confirming = false;
 
   @override
   void initState() {
     super.initState();
     _repository = ref.read(chatRepositoryProvider);
     _initialize();
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.conversationId == widget.conversationId) return;
+    _repository.setTyping(oldWidget.conversationId, false);
+    _repository.leaveConversation(oldWidget.conversationId);
+    _typingDebounce?.cancel();
+    _typingClear?.cancel();
+    _messages.clear();
+    _messageController.clear();
+    _isOtherTyping = false;
+    _isLoading = true;
+    _error = null;
+    _repository.joinConversation(widget.conversationId);
+    _loadMessages();
   }
 
   Future<void> _initialize() async {
@@ -57,6 +76,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     // Idempotent: reuses the existing socket when already connected.
     await _repository.connect();
+    if (!mounted) return;
     _repository.joinConversation(widget.conversationId);
 
     _subscriptions.add(_repository.incomingMessages.listen(_onMessage));
@@ -64,15 +84,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _subscriptions.add(_repository.typingEvents.listen(_onTyping));
     _subscriptions.add(_repository.connectionState.listen((connected) {
       if (mounted) setState(() => _isConnected = connected);
+      if (connected && mounted) {
+        _repository.joinConversation(widget.conversationId);
+        _loadMessages();
+      }
     }));
 
     await _loadMessages();
   }
 
   Future<void> _loadMessages() async {
+    final conversationId = widget.conversationId;
     try {
-      final messages = await _repository.getMessages(widget.conversationId);
-      if (!mounted) return;
+      final messages = await _repository.getMessages(conversationId);
+      if (!mounted || widget.conversationId != conversationId) return;
       setState(() {
         _messages
           ..clear()
@@ -82,7 +107,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       });
       _scrollToBottom(animated: false);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || widget.conversationId != conversationId) return;
       setState(() {
         _isLoading = false;
         _error = 'Impossible de charger les messages';
@@ -238,6 +263,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _replacePending(String clientId, Message confirmed) {
+    if (confirmed.conversationId != widget.conversationId) return;
     setState(() {
       final index = _messages.indexWhere((m) => m.matches(clientId));
       if (index != -1) {
@@ -281,6 +307,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final currentUserId = ref.watch(authProvider).currentUser?.id;
+    final conversation = ref.watch(conversationDetailsProvider(widget.conversationId));
+    ref.listen(transportUpdatesProvider, (_, __) => _loadMessages());
 
     return Scaffold(
       appBar: AppBar(
@@ -306,11 +334,67 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       ),
       body: Column(
         children: [
+          conversation.when(
+            data: (value) => _completionCard(value, currentUserId),
+            loading: () => const LinearProgressIndicator(),
+            error: (error, _) => ListTile(
+              title: Text(error.toString().replaceFirst('Exception: ', '')),
+              trailing: IconButton(icon: const Icon(Icons.refresh), onPressed: () =>
+                ref.invalidate(conversationDetailsProvider(widget.conversationId))),
+            ),
+          ),
           Expanded(child: _buildMessages(currentUserId)),
           _buildComposer(),
         ],
       ),
     );
+  }
+
+  Widget _completionCard(Conversation conversation, int? userId) {
+    if (conversation.requestStatus == 'COMPLETED') {
+      return const ListTile(leading: Icon(Icons.check_circle_outline),
+        title: Text('Réception confirmée'));
+    }
+    if (conversation.requestStatus != 'AWAITING_CUSTOMER_CONFIRMATION') {
+      return const SizedBox.shrink();
+    }
+    final canConfirm = conversation.customerId == userId &&
+        ref.read(authProvider).currentUser?.isCustomer == true;
+    return Card(
+      margin: const EdgeInsets.all(12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('Le chauffeur a terminé le trajet.'),
+          const Text('En attente de confirmation du client'),
+          if (canConfirm && conversation.requestId != null) ...[
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _confirming ? null : () => _confirmReceipt(conversation.requestId!),
+              child: Text(_confirming ? 'Confirmation en cours…' : 'Confirmer la réception'),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _confirmReceipt(int requestId) async {
+    setState(() => _confirming = true);
+    try {
+      await _repository.confirmReceipt(requestId);
+      if (!mounted) return;
+      ref.read(transportUpdatesProvider.notifier).state++;
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error.toString().replaceFirst('Exception: ', '')),
+      ));
+      // A timed-out response may already have committed on the server.
+      ref.invalidate(conversationDetailsProvider(widget.conversationId));
+    } finally {
+      if (mounted) setState(() => _confirming = false);
+    }
   }
 
   Widget _buildMessages(int? currentUserId) {
@@ -361,6 +445,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         }
 
         final message = ordered[_isOtherTyping ? index - 1 : index];
+        if (message.isSystem) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(message.message, textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall),
+          );
+        }
         final isMe = message.senderId == currentUserId;
 
         return _MessageBubble(

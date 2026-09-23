@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/transport_updates_provider.dart';
 import 'package:go_router/go_router.dart';
 import '../models/trip.dart';
 import '../models/truck.dart';
@@ -9,16 +11,16 @@ import '../widgets/section_title.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/states.dart';
 
-class ReturnTripDetailsPage extends StatefulWidget {
+class ReturnTripDetailsPage extends ConsumerStatefulWidget {
   final int tripId;
 
   const ReturnTripDetailsPage({super.key, required this.tripId});
 
   @override
-  State<ReturnTripDetailsPage> createState() => _ReturnTripDetailsPageState();
+  ConsumerState<ReturnTripDetailsPage> createState() => _ReturnTripDetailsPageState();
 }
 
-class _ReturnTripDetailsPageState extends State<ReturnTripDetailsPage> {
+class _ReturnTripDetailsPageState extends ConsumerState<ReturnTripDetailsPage> {
   Trip? _trip;
   Truck? _truck;
   bool _isLoading = true;
@@ -109,6 +111,7 @@ class _ReturnTripDetailsPageState extends State<ReturnTripDetailsPage> {
       final response = await action();
       if (mounted) {
         if (response['success'] == true) {
+          ref.read(transportUpdatesProvider.notifier).state++;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(successMessage)),
           );
@@ -444,13 +447,13 @@ class _ReturnTripDetailsPageState extends State<ReturnTripDetailsPage> {
                             : () => _confirmAction(
                                   title: 'Terminer le trajet',
                                   message:
-                                      'Confirmer la fin de ce trajet retour ?',
+                                      'Terminer le trajet et demander à chaque client de confirmer la réception ?',
                                   confirmLabel: 'TERMINER',
                                   action: () async {
                                     final apiService = ApiService();
                                     return apiService.completeTrip(_trip!.id);
                                   },
-                                  successMessage: 'Trajet terminé',
+                                  successMessage: 'Trajet terminé. Confirmation demandée aux clients.',
                                 ),
                       ),
                     if (_trip!.isPublished || _trip!.isInProgress)

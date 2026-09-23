@@ -64,6 +64,7 @@ class TransportRequest {
   static const Map<String, String> statusDisplayNames = {
     'PENDING': 'En attente',
     'ACCEPTED': 'Acceptée',
+    'AWAITING_CUSTOMER_CONFIRMATION': 'En attente de confirmation du client',
     'REJECTED': 'Refusée',
     'CANCELLED': 'Annulée',
     'COMPLETED': 'Terminée',

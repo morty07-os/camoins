@@ -75,6 +75,7 @@ class Message {
   final String? clientId;
 
   final MessageStatus status;
+  final bool isSystem;
 
   Message({
     required this.id,
@@ -86,6 +87,7 @@ class Message {
     this.readAt,
     this.clientId,
     this.status = MessageStatus.sent,
+    this.isSystem = false,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -98,6 +100,7 @@ class Message {
       createdAt: json['created_at'] ?? '',
       readAt: json['read_at'],
       clientId: json['client_id']?.toString(),
+      isSystem: json['is_system'] == 1 || json['is_system'] == true,
     );
   }
 
@@ -146,6 +149,7 @@ class Message {
       readAt: readAt ?? this.readAt,
       clientId: clientId ?? this.clientId,
       status: status ?? this.status,
+      isSystem: isSystem,
     );
   }
 
