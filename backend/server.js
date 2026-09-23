@@ -806,6 +806,13 @@ function getOwnedTruck(req, res, truckId) {
   return truck;
 }
 
+function validateTripCapacity(data, truck) {
+  if (data.available_weight > truck.max_weight) {
+    return `Available weight cannot exceed the truck maximum of ${truck.max_weight}`;
+  }
+  return null;
+}
+
 // Load a trip by :id and check ownership against the current driver
 function getOwnedTrip(req, res) {
   const tripId = parseInt(req.params.id);
@@ -851,8 +858,13 @@ app.post('/api/trips', authMiddleware, isDriverMiddleware, (req, res) => {
     }
 
     // The selected truck must belong to the driver
-    if (!getOwnedTruck(req, res, data.truck_id)) {
+    const truck = getOwnedTruck(req, res, data.truck_id);
+    if (!truck) {
       return;
+    }
+    const capacityError = validateTripCapacity(data, truck);
+    if (capacityError) {
+      return res.status(400).json({ success: false, message: capacityError });
     }
 
     const tripId = TripModel.create(req.user.id, data);
@@ -1012,8 +1024,13 @@ app.put('/api/trips/:id', authMiddleware, isDriverMiddleware, (req, res) => {
     }
 
     // The selected truck must belong to the driver
-    if (!getOwnedTruck(req, res, data.truck_id)) {
+    const truck = getOwnedTruck(req, res, data.truck_id);
+    if (!truck) {
       return;
+    }
+    const capacityError = validateTripCapacity(data, truck);
+    if (capacityError) {
+      return res.status(400).json({ success: false, message: capacityError });
     }
 
     const updated = TripModel.update(trip.id, data);

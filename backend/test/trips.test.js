@@ -226,6 +226,12 @@ async function run() {
   });
   report('invalid trip type rejected', res.status === 400);
 
+  res = await api('POST', '/trips', tokenA, {
+    ...baseTrip,
+    available_weight: truckData.max_weight + 1,
+  });
+  report('available weight cannot exceed truck capacity', res.status === 400);
+
   // --- Create a return trip (publish)
   res = await api('POST', '/trips', tokenA, baseTrip);
   report(
@@ -281,6 +287,12 @@ async function run() {
       res.data.trip.departure_date === '2026-09-20' &&
       res.data.trip.status === 'PUBLISHED'
   );
+
+  res = await api('PUT', `/trips/${trip1Id}`, tokenA, {
+    ...baseTrip,
+    available_weight: truckData.max_weight + 1,
+  });
+  report('updated available weight cannot exceed truck capacity', res.status === 400);
 
   // --- List trips
   res = await api('GET', '/trips/my', tokenA);
