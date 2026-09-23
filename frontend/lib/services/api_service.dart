@@ -1097,9 +1097,20 @@ class ApiService {
     required int rating,
     String? comment,
   }) async {
+    late http.Response response;
     try {
-      final response = await http
-          .post(
+      response = await (_client?.post(
+                Uri.parse('$baseUrl/ratings'),
+                headers: await _authHeaders(),
+                body: jsonEncode({
+                  'trip_id': tripId,
+                  'request_id': requestId,
+                  'reviewed_user_id': reviewedUserId,
+                  'rating': rating,
+                  if (comment != null && comment.isNotEmpty) 'comment': comment,
+                }),
+              ) ??
+              http.post(
             Uri.parse('$baseUrl/ratings'),
             headers: await _authHeaders(),
             body: jsonEncode({
@@ -1109,19 +1120,33 @@ class ApiService {
               'rating': rating,
               if (comment != null && comment.isNotEmpty) 'comment': comment,
             }),
-          )
+          ))
           .timeout(const Duration(seconds: 10));
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 201 && data['success'] == true) {
-        return Rating.fromJson(data['rating'] as Map<String, dynamic>);
-      } else {
-        throw Exception(data['message'] ?? 'Failed to create rating');
-      }
-    } catch (e) {
-      throw Exception('Cannot connect to the server');
+    } on TimeoutException {
+      throw Exception('Le serveur met trop de temps à répondre. Réessayez.');
+    } on http.ClientException {
+      throw Exception('Impossible de joindre le serveur. Vérifiez votre connexion.');
     }
+
+    final Map<String, dynamic> data;
+    try {
+      data = jsonDecode(response.body) as Map<String, dynamic>;
+    } on FormatException {
+      throw Exception('Réponse du serveur invalide. Réessayez.');
+    } on TypeError {
+      throw Exception('Les données reçues sont invalides.');
+    }
+
+    if (response.statusCode == 201 && data['success'] == true) {
+      try {
+        return Rating.fromJson(data['rating'] as Map<String, dynamic>);
+      } on TypeError {
+        throw Exception('Les données de l\'évaluation sont invalides.');
+      }
+    }
+    throw Exception(
+      data['message'] ?? 'Impossible d\'envoyer l\'évaluation',
+    );
   }
 
   Future<List<Rating>> getUserRatings(int userId) async {
