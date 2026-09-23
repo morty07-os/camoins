@@ -138,8 +138,9 @@ class NotificationNavigationService {
         }
         return '/notifications';
 
-      case 'trip_started':
       case 'trip_completed':
+        return isDriver ? '/driver-history' : '/customer-history';
+      case 'trip_started':
       case 'trip_cancelled':
         if (isDriver) {
           final tripId = notification.tripId ?? notification.relatedId;

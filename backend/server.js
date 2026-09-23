@@ -915,6 +915,8 @@ app.get('/api/trips/history', authMiddleware, (req, res) => {
         return {
           id: trip.id,
           type: 'trip',
+          trip_id: trip.id,
+          request_id: trip.request_id,
           origin: trip.origin_name,
           destination: trip.destination_name,
           date: trip.departure_date,
@@ -955,10 +957,12 @@ app.get('/api/trips/history', authMiddleware, (req, res) => {
         return {
           id: req.id,
           type: 'request',
+          trip_id: req.trip_id,
+          request_id: req.id,
           origin: req.origin_name,
           destination: req.destination_name,
           date: req.departure_date,
-          status: req.trip_status,
+          status: req.status,
           otherParty: req.driver_id ? {
             id: req.driver_id,
             name: req.driver_name,
@@ -2536,14 +2540,20 @@ app.post('/api/ratings', authMiddleware, (req, res) => {
     }
 
     // Validate rating range
-    const ratingValue = parseInt(rating);
-    if (isNaN(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+    const ratingValue = rating;
+    if (!Number.isInteger(ratingValue) || ratingValue < 1 || ratingValue > 5) {
       return res.status(400).json({
         success: false,
         message: 'Rating must be an integer between 1 and 5'
       });
     }
 
+    if (![trip_id, request_id, reviewed_user_id].every(id => Number.isSafeInteger(id) && id > 0)) {
+      return res.status(400).json({ success: false, message: 'Invalid rating identifiers' });
+    }
+    if (comment != null && (typeof comment !== 'string' || comment.length > 500)) {
+      return res.status(400).json({ success: false, message: 'Comment must be text of at most 500 characters' });
+    }
     // Check if user can rate this request
     const canRateResult = RatingModel.canRate(request_id, req.user.id);
     if (!canRateResult.canRate) {
@@ -2554,7 +2564,7 @@ app.post('/api/ratings', authMiddleware, (req, res) => {
     }
 
     // Verify the reviewed_user_id matches the expected other party
-    if (canRateResult.reviewedUserId !== reviewed_user_id) {
+    if (canRateResult.reviewedUserId !== reviewed_user_id || canRateResult.tripId !== trip_id) {
       return res.status(400).json({
         success: false,
         message: 'Invalid reviewed user'
@@ -2568,14 +2578,10 @@ app.post('/api/ratings', authMiddleware, (req, res) => {
       reviewer_id: req.user.id,
       reviewed_user_id,
       rating: ratingValue,
-      comment: comment || null
+      comment: comment?.trim() || null
     });
 
     const createdRating = RatingModel.findById(ratingId);
-
-    // Update the reviewed user's profile rating average and count
-    const avgRating = RatingModel.getAverageRating(reviewed_user_id);
-    ProfileModel.update(reviewed_user_id, { rating: avgRating.avg, rating_count: avgRating.count });
 
     // Notify the reviewed user
     const reviewerProfile = ProfileModel.findByUserId(req.user.id);
@@ -2612,9 +2618,9 @@ app.post('/api/ratings', authMiddleware, (req, res) => {
 // GET /api/users/:id/ratings - Get all ratings for a user
 app.get('/api/users/:id/ratings', authMiddleware, (req, res) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = Number(req.params.id);
 
-    if (isNaN(userId)) {
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Invalid user ID'
@@ -2634,6 +2640,8 @@ app.get('/api/users/:id/ratings', authMiddleware, (req, res) => {
 
     res.json({
       success: true,
+      average_rating: RatingModel.getAverageRating(userId).avg,
+      rating_count: ratings.length,
       ratings
     });
   } catch (error) {

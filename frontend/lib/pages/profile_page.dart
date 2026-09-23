@@ -8,7 +8,6 @@ import '../widgets/app_avatar.dart';
 import '../widgets/info_row.dart';
 import '../widgets/notification_icon.dart';
 import '../widgets/section_title.dart';
-import '../widgets/star_rating.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -29,6 +28,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(authProvider.notifier).refreshProfile();
+    });
     final user = ref.read(authProvider).currentUser;
     _fullNameController = TextEditingController(
       text: user?.profile.fullName ?? '',
@@ -211,11 +213,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         const SizedBox(height: 12),
         if (profile.ratingCount > 0)
           Center(
-            child: StarRatingDisplay(
-              rating: profile.rating,
-              count: profile.ratingCount,
-              starSize: 20,
-              fontSize: 16,
+            child: Column(
+              children: [
+                Text('${profile.rating.toStringAsFixed(1)} ★',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                Text('${profile.ratingCount} évaluations'),
+              ],
             ),
           )
         else

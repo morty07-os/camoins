@@ -191,6 +191,23 @@ function initializeDatabase() {
     )
   `);
 
+  // Guards apply to existing databases too. Submitted ratings are immutable.
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS ratings_validate_insert BEFORE INSERT ON ratings
+    BEGIN
+      SELECT CASE WHEN typeof(NEW.rating) != 'integer' OR NEW.rating NOT BETWEEN 1 AND 5
+        THEN RAISE(ABORT, 'Rating must be an integer between 1 and 5') END;
+      SELECT CASE WHEN NEW.reviewer_id = NEW.reviewed_user_id OR NOT EXISTS (
+        SELECT 1 FROM transport_requests r JOIN trips t ON t.id = r.trip_id
+        WHERE r.id = NEW.request_id AND t.id = NEW.trip_id AND r.status = 'COMPLETED'
+          AND ((NEW.reviewer_id = r.customer_id AND NEW.reviewed_user_id = t.driver_id)
+            OR (NEW.reviewer_id = t.driver_id AND NEW.reviewed_user_id = r.customer_id))
+      ) THEN RAISE(ABORT, 'Invalid completed transport participants') END;
+    END;
+    CREATE TRIGGER IF NOT EXISTS ratings_no_update BEFORE UPDATE ON ratings
+    BEGIN SELECT RAISE(ABORT, 'Ratings cannot be edited'); END;
+  `);
+
   migrateConversations();
 
   // Migration: Add missing columns if they don't exist (for existing databases)
