@@ -160,10 +160,9 @@ class ReturnTripFormState extends State<ReturnTripForm> {
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final initial = DateTime(now.year, now.month, now.day);
-    final selected =
-        _selectedDate != null && !_selectedDate!.isBefore(initial)
-            ? _selectedDate!
-            : initial;
+    final selected = _selectedDate != null && !_selectedDate!.isBefore(initial)
+        ? _selectedDate!
+        : initial;
     final picked = await showDatePicker(
       context: context,
       initialDate: selected,
@@ -238,6 +237,13 @@ class ReturnTripFormState extends State<ReturnTripForm> {
 
   bool get canSubmit =>
       !_isLoadingTrucks && _trucks.isNotEmpty && !_hasTruckLoadError;
+
+  Truck? get _selectedTruck {
+    for (final truck in _trucks) {
+      if (truck.id == _selectedTruckId) return truck;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +330,10 @@ class ReturnTripFormState extends State<ReturnTripForm> {
               final parsed = double.tryParse(value.trim());
               if (parsed == null || parsed <= 0) {
                 return 'Le poids doit être un nombre positif';
+              }
+              final truck = _selectedTruck;
+              if (truck != null && parsed > truck.maxWeight) {
+                return 'Le poids ne peut pas dépasser ${_formatKg(truck.maxWeight)} kg';
               }
               return null;
             },
