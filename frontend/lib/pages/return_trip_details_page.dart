@@ -411,6 +411,12 @@ class _ReturnTripDetailsPageState extends State<ReturnTripDetailsPage> {
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
+                    if (_trip!.isCompleted)
+                      _ActionButton(
+                        icon: Icons.star_outline_rounded,
+                        label: 'Évaluer le transport',
+                        onPressed: () => context.push('/driver-history'),
+                      ),
                     if (_trip!.isPublished)
                       _ActionButton(
                         icon: Icons.play_arrow_rounded,

@@ -88,9 +88,10 @@ class _RatingBottomSheetState extends ConsumerState<RatingBottomSheet> {
       );
 
       if (mounted) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop();
         widget.onRatingSubmitted?.call();
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: const Text('Évaluation envoyée avec succès'),
             backgroundColor: AppColors.success,

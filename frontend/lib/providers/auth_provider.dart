@@ -78,6 +78,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<void> refreshProfile() async {
+    final userId = state.currentUser?.id;
+    final token = await _storageService.getToken();
+    if (token == null || userId == null) return;
+    final result = await _apiService.getCurrentUser(token);
+    if (result['success'] == true && state.currentUser?.id == userId) {
+      state = state.copyWith(currentUser: result['user'] as User);
+    }
+  }
+
   Future<bool> login(String email, String password) async {
     state = state.copyWith(isLoading: true, clearError: true);
 

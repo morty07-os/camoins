@@ -849,21 +849,22 @@ const NotificationModel = {
 // Rating model functions
 const RatingModel = {
   create(data) {
-    const stmt = db.prepare(`
-      INSERT INTO ratings (trip_id, request_id, reviewer_id, reviewed_user_id, rating, comment)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
-      data.trip_id,
-      data.request_id,
-      data.reviewer_id,
-      data.reviewed_user_id,
-      data.rating,
-      data.comment || null
-    );
-
-    return result.lastInsertRowid;
+    return db.transaction(() => {
+      const eligibility = this.canRate(data.request_id, data.reviewer_id);
+      if (!eligibility.canRate || eligibility.tripId !== data.trip_id ||
+          eligibility.reviewedUserId !== data.reviewed_user_id) {
+        throw new Error(eligibility.reason || 'Invalid transport participants');
+      }
+      const result = db.prepare(`
+        INSERT INTO ratings (trip_id, request_id, reviewer_id, reviewed_user_id, rating, comment)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(data.trip_id, data.request_id, data.reviewer_id,
+        data.reviewed_user_id, data.rating, data.comment || null);
+      const summary = this.getAverageRating(data.reviewed_user_id);
+      db.prepare(`UPDATE profiles SET rating = ?, rating_count = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?`).run(summary.avg, summary.count, data.reviewed_user_id);
+      return result.lastInsertRowid;
+    })();
   },
 
   findById(id) {

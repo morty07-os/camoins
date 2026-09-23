@@ -66,6 +66,8 @@ class UserProfile {
 
 class HistoryItem {
   final int id;
+  final int tripId;
+  final int? requestId;
   final String type;
   final String origin;
   final String destination;
@@ -77,6 +79,8 @@ class HistoryItem {
 
   HistoryItem({
     required this.id,
+    required this.tripId,
+    this.requestId,
     required this.type,
     required this.origin,
     required this.destination,
@@ -90,6 +94,8 @@ class HistoryItem {
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
     return HistoryItem(
       id: json['id'],
+      tripId: json['trip_id'],
+      requestId: json['request_id'],
       type: json['type'] ?? '',
       origin: json['origin'] ?? '',
       destination: json['destination'] ?? '',

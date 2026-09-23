@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/notification_icon.dart';
 import '../widgets/star_rating.dart';
+import '../widgets/rating_bottom_sheet.dart';
 import '../widgets/status_badge.dart';
 
 class CustomerHistoryPage extends ConsumerStatefulWidget {
@@ -165,7 +166,7 @@ class _CustomerHistoryPageState extends ConsumerState<CustomerHistoryPage> {
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final item = _history[index];
-          return _HistoryCard(item: item, formatDate: _formatDate);
+          return _HistoryCard(item: item, formatDate: _formatDate, onRated: _loadHistory);
         },
       ),
     );
@@ -173,10 +174,12 @@ class _CustomerHistoryPageState extends ConsumerState<CustomerHistoryPage> {
 }
 
 class _HistoryCard extends StatelessWidget {
+  final VoidCallback onRated;
   final HistoryItem item;
   final String Function(String) formatDate;
 
   const _HistoryCard({
+    required this.onRated,
     required this.item,
     required this.formatDate,
   });
@@ -385,7 +388,7 @@ class _HistoryCard extends StatelessWidget {
                   ],
                 ),
               ),
-            ] else if (isCompleted) ...[
+            ] else if (isCompleted && item.requestId != null && item.otherParty != null) ...[
               // Rating prompt for completed but not rated
               Container(
                 padding: const EdgeInsets.all(12),
@@ -412,11 +415,15 @@ class _HistoryCard extends StatelessWidget {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {
-                        // TODO: Show rating bottom sheet
-                        // Would need the request_id and reviewed_user_id from the item
-                      },
-                      child: const Text('Évaluer'),
+                      onPressed: () => RatingBottomSheet.show(
+                        context: context,
+                        tripId: item.tripId,
+                        requestId: item.requestId!,
+                        reviewedUserId: item.otherParty!.id,
+                        reviewedUserName: item.otherParty!.name,
+                        onRatingSubmitted: onRated,
+                      ),
+                      child: const Text('Évaluer le transport'),
                     ),
                   ],
                 ),
