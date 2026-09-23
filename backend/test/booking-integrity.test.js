@@ -132,6 +132,8 @@ async function run() {
   assert.equal((await api('POST', `/trips/${completedTrip}/start`, driver)).status, 200);
   assert.equal((await api('POST', `/requests/${unanswered}/accept`, driver)).status, 409);
   assert.equal((await api('POST', `/trips/${completedTrip}/complete`, driver)).status, 200);
+  assert.equal(await requestStatus(completedRequest), 'AWAITING_CUSTOMER_CONFIRMATION');
+  assert.equal((await api('POST', `/requests/${completedRequest}/confirm`, customer)).status, 200);
   assert.equal(await requestStatus(completedRequest), 'COMPLETED');
   assert.equal(await requestStatus(unanswered), 'CANCELLED');
   assert.equal((await api('POST', `/requests/${completedRequest}/cancel`, customer)).status, 400);

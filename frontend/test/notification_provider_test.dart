@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'dart:async';
 import 'package:backhaul_frontend/models/notification.dart';
 import 'package:backhaul_frontend/providers/notification_provider.dart';
+import 'package:backhaul_frontend/providers/transport_updates_provider.dart';
 import 'package:backhaul_frontend/services/api_service.dart';
 import 'package:backhaul_frontend/services/chat_repository.dart';
 import 'package:backhaul_frontend/services/chat_service.dart';
@@ -54,6 +55,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          transportUpdatesProvider.overrideWith((ref) => 0),
           apiServiceProvider.overrideWithValue(mockApiService),
           chatRepositoryProvider.overrideWithValue(mockChatRepository),
         ],
@@ -89,6 +91,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          transportUpdatesProvider.overrideWith((ref) => 0),
           apiServiceProvider.overrideWithValue(mockApiService),
           chatRepositoryProvider.overrideWithValue(mockChatRepository),
         ],
@@ -124,10 +127,6 @@ void main() {
       await Future.microtask(() {});
       await Future.delayed(const Duration(milliseconds: 10));
 
-      // Debug: print the state
-      final asyncState = container.read(notificationProvider);
-      print('Test: asyncState = $asyncState');
-      print('Test: asyncState.value = ${asyncState.value}');
 
       final state = container.read(notificationProvider);
       expect(state.value?.notifications.length, 2);
@@ -156,6 +155,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          transportUpdatesProvider.overrideWith((ref) => 0),
           apiServiceProvider.overrideWithValue(mockApiService),
           chatRepositoryProvider.overrideWithValue(mockChatRepository),
         ],
@@ -210,6 +210,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          transportUpdatesProvider.overrideWith((ref) => 0),
           apiServiceProvider.overrideWithValue(mockApiService),
           chatRepositoryProvider.overrideWithValue(mockChatRepository),
         ],
@@ -257,6 +258,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          transportUpdatesProvider.overrideWith((ref) => 0),
           apiServiceProvider.overrideWithValue(mockApiService),
           chatRepositoryProvider.overrideWithValue(mockChatRepository),
         ],

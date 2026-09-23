@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../providers/transport_updates_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rating.dart';
-import '../services/api_service.dart';
+import '../providers/notification_provider.dart' show apiServiceProvider;
 import '../theme/app_theme.dart';
 import '../widgets/notification_icon.dart';
 import '../widgets/star_rating.dart';
@@ -33,7 +34,7 @@ class _DriverHistoryPageState extends ConsumerState<DriverHistoryPage> {
     });
 
     try {
-      final apiService = ApiService();
+      final apiService = ref.read(apiServiceProvider);
       final response = await apiService.getTripHistory();
       if (mounted) {
         setState(() {
@@ -70,6 +71,7 @@ class _DriverHistoryPageState extends ConsumerState<DriverHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(transportUpdatesProvider, (_, __) => _loadHistory());
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes trajets'),

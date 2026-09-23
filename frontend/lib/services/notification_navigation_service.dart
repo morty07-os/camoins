@@ -73,6 +73,9 @@ class NotificationNavigationService {
     final isCustomer = currentUser.isCustomer;
 
     switch (notification.type) {
+      case 'delivery_confirmation_requested':
+      case 'delivery_confirmed':
+        return notification.conversationId == null ? '/messages' : '/chat/${notification.conversationId}';
       case 'new_message':
         // Use conversationId for direct chat navigation
         final conversationId = notification.conversationId ?? notification.relatedId;

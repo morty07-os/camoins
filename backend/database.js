@@ -191,6 +191,8 @@ function initializeDatabase() {
     )
   `);
 
+  migrateCompletion();
+
   // Guards apply to existing databases too. Submitted ratings are immutable.
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS ratings_validate_insert BEFORE INSERT ON ratings
@@ -226,6 +228,38 @@ function initializeDatabase() {
   initializeIndexes();
 
   console.log('✓ Database tables initialized');
+}
+
+// Rebuild the CHECK constraint without changing any existing request or child row.
+function migrateCompletion() {
+  const schema = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'transport_requests'").get().sql;
+  if (!schema.includes('AWAITING_CUSTOMER_CONFIRMATION')) {
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        const objects = db.prepare("SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL AND (type = 'trigger' OR (type = 'index' AND tbl_name = 'transport_requests'))").all();
+        for (const object of objects.filter(o => o.type === 'trigger')) {
+          db.exec(`DROP TRIGGER "${object.name.replace(/"/g, '""')}"`);
+        }
+        db.exec(schema.replace(/CREATE TABLE ["`]?transport_requests["`]?/i, 'CREATE TABLE transport_requests_completion')
+          .replace("'ACCEPTED',", "'ACCEPTED', 'AWAITING_CUSTOMER_CONFIRMATION',"));
+        db.exec(`INSERT INTO transport_requests_completion SELECT * FROM transport_requests;
+          DROP TABLE transport_requests;
+          ALTER TABLE transport_requests_completion RENAME TO transport_requests;`);
+        for (const object of objects) db.exec(object.sql);
+        if (db.pragma('foreign_key_check').length) throw new Error('Completion migration foreign key check failed');
+      }).immediate();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+  }
+  const columns = db.pragma('table_info(transport_requests)').map(c => c.name);
+  for (const column of ['driver_finished_at', 'customer_confirmed_at']) {
+    if (!columns.includes(column)) db.exec(`ALTER TABLE transport_requests ADD COLUMN ${column} TEXT`);
+  }
+  if (!db.pragma('table_info(messages)').some(c => c.name === 'is_system')) {
+    db.exec('ALTER TABLE messages ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0');
+  }
 }
 
 function initializeIndexes() {

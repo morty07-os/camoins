@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/user.dart';
@@ -11,6 +12,8 @@ import '../models/rating.dart' hide UserProfile;
 import 'storage_service.dart';
 
 class ApiService {
+  ApiService({http.Client? client}) : _client = client;
+  final http.Client? _client;
   /// REST base URL resolved from [AppConfig] (no hardcoded hosts).
   static String get baseUrl => AppConfig.apiBaseUrl;
 
@@ -1144,24 +1147,46 @@ class ApiService {
     }
   }
 
-  Future<HistoryResponse> getTripHistory() async {
+  Future<Map<String, dynamic>> _completionApi(String path, {bool post = false}) async {
     try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/trips/history'),
-            headers: await _authHeaders(),
-          )
+      final uri = Uri.parse('$baseUrl/$path');
+      final headers = await _authHeaders();
+      final response = await (post
+          ? (_client?.post(uri, headers: headers) ?? http.post(uri, headers: headers))
+          : (_client?.get(uri, headers: headers) ?? http.get(uri, headers: headers)))
           .timeout(const Duration(seconds: 10));
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && data['success'] == true) {
-        return HistoryResponse.fromJson(data);
-      } else {
-        throw Exception(data['message'] ?? 'Failed to get trip history');
+      if (response.statusCode != 200) {
+        throw Exception(_errorMessage(response.body, 'Erreur du serveur (HTTP ${response.statusCode})'));
       }
-    } catch (e) {
-      throw Exception('Cannot connect to the server');
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['success'] != true) throw Exception(data['message'] ?? 'La demande a échoué');
+      return data;
+    } on TimeoutException {
+      throw Exception('Le serveur met trop de temps à répondre. Réessayez.');
+    } on http.ClientException {
+      throw Exception('Impossible de joindre le serveur. Vérifiez votre connexion.');
+    } on FormatException {
+      throw Exception('Réponse du serveur invalide. Réessayez.');
+    } on TypeError {
+      throw Exception('Les données reçues sont invalides.');
+    }
+  }
+
+  Future<Conversation> getConversation(int id) async => Conversation.fromJson(
+      (await _completionApi('conversations/$id'))['conversation']);
+
+  Future<void> confirmReceipt(int id) async {
+    await _completionApi('requests/$id/confirm', post: true);
+  }
+
+  Future<HistoryResponse> getTripHistory() async {
+    final data = await _completionApi('trips/history');
+    try {
+      return HistoryResponse.fromJson(data);
+    } on FormatException {
+      throw Exception('Le format des données de l’historique est invalide.');
+    } on TypeError {
+      throw Exception('Les données de l’historique sont invalides.');
     }
   }
 }

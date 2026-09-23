@@ -292,20 +292,22 @@ const TripModel = {
   },
 
   finishWithRequests(id, status) {
+    if (status === 'COMPLETED') {
+      const trip = this.findById(id);
+      return require('./completion').finishTrip(id, { id: trip?.driver_id, role: 'DRIVER' });
+    }
     return db.transaction(() => {
       const trip = this.findById(id);
-      const allowed = status === 'COMPLETED' ? ['IN_PROGRESS'] : ['PUBLISHED', 'IN_PROGRESS'];
-      if (!['COMPLETED', 'CANCELLED'].includes(status) || !trip || !allowed.includes(trip.status)) {
+      const allowed = ['PUBLISHED', 'IN_PROGRESS'];
+      if (status !== 'CANCELLED' || !trip || !allowed.includes(trip.status)) {
         const error = new Error('Invalid trip status transition');
         error.status = 409;
         throw error;
       }
       const requests = db.prepare(`SELECT id, customer_id, status FROM transport_requests
         WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).all(id);
-      db.prepare(`UPDATE transport_requests SET status = CASE
-        WHEN status = 'ACCEPTED' AND ? = 'COMPLETED' THEN 'COMPLETED'
-        ELSE 'CANCELLED' END, updated_at = CURRENT_TIMESTAMP
-        WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).run(status, id);
+      db.prepare(`UPDATE transport_requests SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP
+        WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).run(id);
       this.updateStatus(id, status);
       return requests;
     })();
@@ -703,7 +705,7 @@ const MessageModel = {
 
   findById(id) {
     const stmt = db.prepare(`
-      SELECT m.id, m.conversation_id, m.sender_id, m.message, m.created_at, m.read_at,
+      SELECT m.id, m.conversation_id, m.sender_id, m.message, m.created_at, m.read_at, m.is_system,
              p.full_name as sender_name
       FROM messages m
       LEFT JOIN profiles p ON m.sender_id = p.user_id
@@ -714,12 +716,12 @@ const MessageModel = {
 
   findByConversationId(conversationId, limit = 50, offset = 0) {
     const stmt = db.prepare(`
-      SELECT m.id, m.conversation_id, m.sender_id, m.message, m.created_at, m.read_at,
+      SELECT m.id, m.conversation_id, m.sender_id, m.message, m.created_at, m.read_at, m.is_system,
              p.full_name as sender_name
       FROM messages m
       LEFT JOIN profiles p ON m.sender_id = p.user_id
       WHERE m.conversation_id = ?
-      ORDER BY m.created_at DESC
+      ORDER BY m.created_at DESC, m.id DESC
       LIMIT ? OFFSET ?
     `);
     return stmt.all(conversationId, limit, offset).reverse();
@@ -756,12 +758,12 @@ const MessageModel = {
 
   getLastMessage(conversationId) {
     const stmt = db.prepare(`
-      SELECT m.id, m.conversation_id, m.sender_id, m.message, m.created_at, m.read_at,
+      SELECT m.id, m.conversation_id, m.sender_id, m.message, m.created_at, m.read_at, m.is_system,
              p.full_name as sender_name
       FROM messages m
       LEFT JOIN profiles p ON m.sender_id = p.user_id
       WHERE m.conversation_id = ?
-      ORDER BY m.created_at DESC
+      ORDER BY m.created_at DESC, m.id DESC
       LIMIT 1
     `);
     return stmt.get(conversationId);

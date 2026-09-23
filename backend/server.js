@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const http = require('http');
 const socketIo = require('socket.io');
 const db = require('./database');
+const Completion = require('./completion');
 const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel, RatingModel } = require('./models');
 const { generateToken, authMiddleware, verifyToken } = require('./auth');
 
@@ -902,7 +903,7 @@ app.get('/api/trips/history', authMiddleware, (req, res) => {
         LEFT JOIN transport_requests tr ON t.id = tr.trip_id AND tr.status = 'COMPLETED'
         LEFT JOIN profiles p ON tr.customer_id = p.user_id
         LEFT JOIN trucks tk ON t.truck_id = tk.id
-        WHERE t.driver_id = ? AND t.status = 'COMPLETED'
+        WHERE t.driver_id = ? AND (t.status = 'COMPLETED' OR tr.status = 'COMPLETED')
         ORDER BY t.departure_date DESC
       `).all(userId);
 
@@ -920,7 +921,7 @@ app.get('/api/trips/history', authMiddleware, (req, res) => {
           origin: trip.origin_name,
           destination: trip.destination_name,
           date: trip.departure_date,
-          status: trip.status,
+          status: trip.request_status || trip.status,
           otherParty: trip.customer_id ? {
             id: trip.customer_id,
             name: trip.customer_name,
@@ -1141,56 +1142,20 @@ app.post('/api/trips/:id/start', authMiddleware, isDriverMiddleware, (req, res) 
   }
 });
 
-// Complete a trip (IN_PROGRESS -> COMPLETED)
+// Completion events are emitted only after the transaction commits.
+function emitCompletion(events) {
+  for (const { message, notification } of events) {
+    if (message) io.to(`conversation-${message.conversation_id}`).emit('message-received', buildMessagePayload(message));
+    io.to(`user-${notification.user_id}`).emit('notification', notification);
+  }
+}
 app.post('/api/trips/:id/complete', authMiddleware, isDriverMiddleware, (req, res) => {
   try {
-    const trip = getOwnedTrip(req, res);
-    if (!trip) {
-      return;
-    }
-
-    if (trip.status !== 'IN_PROGRESS') {
-      return res.status(400).json({
-        success: false,
-        message: 'Only in-progress trips can be completed'
-      });
-    }
-
-    const finishedRequests = TripModel.finishWithRequests(trip.id, 'COMPLETED');
-    const updatedTrip = TripModel.findById(trip.id);
-
-    // Notify customers with accepted requests on this trip
-    const acceptedRequests = finishedRequests.filter(request => request.status === 'ACCEPTED');
-
-    for (const req of acceptedRequests) {
-      createNotification(req.customer_id,
-        'Transport Completed',
-        `Your transport from ${trip.origin_name} to ${trip.destination_name} has been completed.`,
-        NOTIFICATION_TYPES.TRIP_COMPLETED,
-        trip.id,
-        null,
-        trip.id,
-        null
-      );
-    }
-
-    for (const request of finishedRequests.filter(request => request.status === 'PENDING')) {
-      createNotification(request.customer_id, 'Request Cancelled',
-        'The trip has completed without accepting your request.',
-        NOTIFICATION_TYPES.REQUEST_CANCELLED, request.id, null, trip.id, request.id);
-    }
-
-    res.json({
-      success: true,
-      message: 'Return trip completed successfully',
-      trip: updatedTrip
-    });
+    const id = Number(req.params.id);
+    emitCompletion(Completion.finishTrip(id, req.user));
+    res.json({ success: true, trip: TripModel.findById(id) });
   } catch (error) {
-    console.error('Complete trip error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
+    res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Impossible de terminer le trajet' });
   }
 });
 
@@ -2018,7 +1983,7 @@ app.post('/api/requests/:id/cancel', authMiddleware, (req, res) => {
     }
 
     // Can only cancel if PENDING or ACCEPTED
-    if (request.status === 'REJECTED' || request.status === 'COMPLETED' || request.status === 'CANCELLED') {
+    if (request.status === 'AWAITING_CUSTOMER_CONFIRMATION' || request.status === 'REJECTED' || request.status === 'COMPLETED' || request.status === 'CANCELLED') {
       return res.status(400).json({
         success: false,
         message: `Cannot cancel a ${request.status} request`
@@ -2054,59 +2019,26 @@ app.post('/api/requests/:id/cancel', authMiddleware, (req, res) => {
   }
 });
 
-// POST /api/requests/:id/complete - Driver completes request
-app.post('/api/requests/:id/complete', authMiddleware, isDriverMiddleware, (req, res) => {
-  try {
-    const requestId = parseInt(req.params.id);
-    const request = TransportRequestModel.findById(requestId);
-
-    if (!request) {
-      return res.status(404).json({
-        success: false,
-        message: 'Request not found'
-      });
+for (const action of ['complete', 'confirm']) {
+  app.post('/api/requests/:id/' + action, authMiddleware, (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      emitCompletion(Completion.finishRequest(id, req.user, action === 'confirm'));
+      res.json({ success: true, request: db.prepare('SELECT * FROM transport_requests WHERE id = ?').get(id) });
+    } catch (error) {
+      res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Impossible de finaliser la demande' });
     }
+  });
+}
 
-    const trip = TripModel.findById(request.trip_id);
-    if (!trip) {
-      return res.status(404).json({
-        success: false,
-        message: 'Trip not found'
-      });
-    }
-
-    // Verify driver owns this trip
-    if (trip.driver_id !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not own this trip'
-      });
-    }
-
-    // Verify request is accepted
-    if (request.status !== 'ACCEPTED') {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot complete a ${request.status} request`
-      });
-    }
-
-    // Update status
-    TransportRequestModel.updateStatus(requestId, 'COMPLETED');
-    const updatedRequest = TransportRequestModel.findById(requestId);
-
-    res.json({
-      success: true,
-      message: 'Transport request completed',
-      request: updatedRequest
-    });
-  } catch (error) {
-    console.error('Complete request error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
+app.get('/api/conversations/:id', authMiddleware, (req, res) => {
+  const conversation = ConversationModel.findById(Number(req.params.id));
+  if (!conversation) return res.status(404).json({ success: false, message: 'Conversation introuvable' });
+  if (!canAccessConversation(conversation, req.user.id)) return res.status(403).json({ success: false, message: 'Accès interdit' });
+  const request = db.prepare('SELECT * FROM transport_requests WHERE id = ?').get(conversation.request_id);
+  res.json({ success: true, conversation: { ...conversation, request_status: request.status,
+    trip_id: request.trip_id, driver_finished_at: request.driver_finished_at,
+    customer_confirmed_at: request.customer_confirmed_at } });
 });
 
 // ---- CONVERSATIONS & MESSAGES (Chat) ----
@@ -2121,7 +2053,7 @@ function buildMessagePayload(message, clientId = null) {
   // Ensure timestamps are ISO 8601 UTC (e.g., 2026-09-19T16:04:32.000Z)
   const toISO = (ts) => {
     if (!ts) return null;
-    const dt = new Date(ts);
+    const dt = new Date(/Z$|[+-]\d\d:\d\d$/.test(ts) ? ts : ts.replace(' ', 'T') + 'Z');
     return isNaN(dt.getTime()) ? ts : dt.toISOString();
   };
 
@@ -2131,6 +2063,7 @@ function buildMessagePayload(message, clientId = null) {
     sender_id: message.sender_id,
     sender_name: message.sender_name || 'Unknown',
     message: message.message,
+    is_system: message.is_system,
     created_at: toISO(message.created_at),
     read_at: toISO(message.read_at),
     client_id: clientId

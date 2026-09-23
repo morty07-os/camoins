@@ -40,6 +40,9 @@ class ChatRepository {
 
   Future<void> disconnect() => _chat.disconnect();
 
+  Future<Conversation> getConversation(int id) => _api.getConversation(id);
+  Future<void> confirmReceipt(int requestId) => _api.confirmReceipt(requestId);
+
   Future<List<Conversation>> getConversations() => _api.getConversations();
 
   Future<List<Message>> getMessages(int conversationId) =>
