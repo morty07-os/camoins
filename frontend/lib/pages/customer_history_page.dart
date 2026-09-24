@@ -156,7 +156,7 @@ class _CustomerHistoryPageState extends ConsumerState<CustomerHistoryPage> {
                 style: TextStyle(color: AppColors.textSecondary),
               ),
               TextButton(
-                onPressed: () => context.push('/messages'),
+                onPressed: () => context.go('/customer-messages'),
                 child: const Text('Ouvrir mes conversations'),
               ),
             ],

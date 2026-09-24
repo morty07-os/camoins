@@ -35,7 +35,7 @@ class NotificationNavigationService {
     debugPrint('[NOTIFICATION] Target route: $route');
 
     if (route != null && context.mounted) {
-      // Navigate without blocking on mark-as-read
+      // Navigate without blocking on mark-as-read.
       _navigateAndMarkRead(context, route, notification);
     } else {
       debugPrint('[NOTIFICATION] Unknown notification type or missing ID, fallback to notifications list');
@@ -47,8 +47,16 @@ class NotificationNavigationService {
 
   /// Navigate to route and mark notification as read in background
   static void _navigateAndMarkRead(BuildContext context, String route, AppNotification notification) {
-    // Navigate first
-    context.go(route);
+    // Detail screens sit above the dashboard shell so back returns to the
+    // notification list and then to the previously selected customer tab.
+    final isDetailRoute = route.startsWith('/chat/') ||
+        route.startsWith('/search-trip-details/') ||
+        route.startsWith('/driver-return-trip-details/');
+    if (isDetailRoute) {
+      context.push(route);
+    } else {
+      context.go(route);
+    }
 
     // Mark as read in background (fire and forget)
     if (!notification.isRead) {
@@ -75,7 +83,9 @@ class NotificationNavigationService {
     switch (notification.type) {
       case 'delivery_confirmation_requested':
       case 'delivery_confirmed':
-        return notification.conversationId == null ? '/messages' : '/chat/${notification.conversationId}';
+        return notification.conversationId == null
+            ? (isDriver ? '/driver-messages' : '/customer-messages')
+            : '/chat/${notification.conversationId}';
       case 'new_message':
         // Use conversationId for direct chat navigation
         final conversationId = notification.conversationId ?? notification.relatedId;
@@ -83,7 +93,7 @@ class NotificationNavigationService {
           return '/chat/$conversationId';
         }
         // Fallback to messages list
-        return '/messages';
+        return isDriver ? '/driver-messages' : '/customer-messages';
 
       case 'new_request':
         if (isDriver) {
@@ -95,7 +105,7 @@ class NotificationNavigationService {
           if (tripId != null) {
             return '/search-trip-details/$tripId';
           }
-          return '/search-trips';
+          return '/customer-trips';
         }
         return '/notifications';
 
@@ -113,7 +123,7 @@ class NotificationNavigationService {
           if (conversationId != null) {
             return '/chat/$conversationId';
           }
-          return '/messages';
+          return '/customer-messages';
         }
         return '/notifications';
 
@@ -125,7 +135,7 @@ class NotificationNavigationService {
           if (tripId != null) {
             return '/search-trip-details/$tripId';
           }
-          return '/search-trips';
+          return '/customer-trips';
         }
         return '/notifications';
 
@@ -137,7 +147,7 @@ class NotificationNavigationService {
           if (tripId != null) {
             return '/search-trip-details/$tripId';
           }
-          return '/search-trips';
+          return '/customer-trips';
         }
         return '/notifications';
 
@@ -156,7 +166,7 @@ class NotificationNavigationService {
           if (tripId != null) {
             return '/search-trip-details/$tripId';
           }
-          return '/search-trips';
+          return '/customer-trips';
         }
         return '/notifications';
 

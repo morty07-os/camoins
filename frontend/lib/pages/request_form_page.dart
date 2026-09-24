@@ -91,7 +91,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Demande envoyée avec succès')),
             );
-            context.push('/messages', extra: conversation.id);
+            context.push('/chat/${conversation.id}');
           } catch (conversationError) {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(

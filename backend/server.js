@@ -1490,16 +1490,12 @@ app.get('/api/search/trips', async (req, res) => {
 
     const originName = typeof origin_name === 'string' ? normalizeLocation(origin_name) : '';
     const destinationName = typeof destination_name === 'string' ? normalizeLocation(destination_name) : '';
-    if (origin_name !== undefined && !originName) {
-      return res.status(400).json({ success: false, message: 'Origin must not be blank' });
-    }
-    if (destination_name !== undefined && !destinationName) {
-      return res.status(400).json({ success: false, message: 'Destination must not be blank' });
-    }
-    if (date !== undefined && !isIsoCalendarDate(date)) {
+    const dateFilter = typeof date === 'string' ? date.trim() : '';
+    const truckTypeFilter = typeof truck_type === 'string' ? truck_type.trim() : '';
+    if (dateFilter && !isIsoCalendarDate(dateFilter)) {
       return res.status(400).json({ success: false, message: 'Date must be a valid YYYY-MM-DD date' });
     }
-    if (truck_type !== undefined && !VALID_TRUCK_TYPES.includes(String(truck_type))) {
+    if (truckTypeFilter && !VALID_TRUCK_TYPES.includes(truckTypeFilter)) {
       return res.status(400).json({ success: false, message: 'Invalid truck type' });
     }
 
@@ -1527,9 +1523,9 @@ app.get('/api/search/trips', async (req, res) => {
     };
     addLocationFilter('origin', originName, originCoordinates);
     addLocationFilter('destination', destinationName, destinationCoordinates);
-    if (date !== undefined) {
+    if (dateFilter) {
       where.push('t.departure_date = ?');
-      parameters.push(String(date));
+      parameters.push(dateFilter);
     }
     if (weightResult.value !== null) {
       where.push('t.available_weight >= ?');
@@ -1539,9 +1535,9 @@ app.get('/api/search/trips', async (req, res) => {
       where.push('t.available_volume IS NOT NULL AND t.available_volume >= ?');
       parameters.push(volumeResult.value);
     }
-    if (truck_type !== undefined) {
+    if (truckTypeFilter) {
       where.push('tr.truck_type = ?');
-      parameters.push(String(truck_type));
+      parameters.push(truckTypeFilter);
     }
 
     const fromAndWhere = `
