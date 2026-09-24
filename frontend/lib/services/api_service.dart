@@ -617,53 +617,35 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> searchTrips({
-    String? originName,
     double? originLat,
     double? originLng,
-    String? destinationName,
     double? destinationLat,
     double? destinationLng,
-    String? date,
-    double? requiredWeight,
+    required String date,
+    required double requiredWeight,
     double? requiredVolume,
-    String? truckType,
-    int page = 1,
-    int pageSize = 20,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/search/trips').replace(
         queryParameters: {
-          if (originName != null && originName.trim().isNotEmpty)
-            'origin_name': originName.trim(),
           if (originLat != null) 'origin_lat': originLat.toString(),
           if (originLng != null) 'origin_lng': originLng.toString(),
-          if (destinationName != null && destinationName.trim().isNotEmpty)
-            'destination_name': destinationName.trim(),
           if (destinationLat != null)
             'destination_lat': destinationLat.toString(),
           if (destinationLng != null)
             'destination_lng': destinationLng.toString(),
-          if (date != null && date.trim().isNotEmpty) 'date': date.trim(),
-          if (requiredWeight != null)
-            'required_weight': requiredWeight.toString(),
+          'date': date,
+          'required_weight': requiredWeight.toString(),
           if (requiredVolume != null)
             'required_volume': requiredVolume.toString(),
-          if (truckType != null && truckType.trim().isNotEmpty)
-            'truck_type': truckType.trim(),
-          'page': page.toString(),
-          'page_size': pageSize.toString(),
         },
       );
 
-      final headers = await _authHeaders();
-      final response = await (_client?.get(
-                uri,
-                headers: headers,
-              ) ??
-              http.get(
-                uri,
-                headers: headers,
-              ))
+      final response = await http
+          .get(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+          )
           .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
@@ -672,9 +654,6 @@ class ApiService {
         return {
           'success': true,
           'trips': data['trips'] as List? ?? [],
-          'count': data['count'] ?? 0,
-          'page': data['page'] ?? page,
-          'totalPages': data['totalPages'] ?? 0,
         };
       } else {
         return {
@@ -1213,9 +1192,8 @@ class ApiService {
             response.body, 'Erreur du serveur (HTTP ${response.statusCode})'));
       }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (data['success'] != true) {
+      if (data['success'] != true)
         throw Exception(data['message'] ?? 'La demande a échoué');
-      }
       return data;
     } on TimeoutException {
       throw Exception('Le serveur met trop de temps à répondre. Réessayez.');
