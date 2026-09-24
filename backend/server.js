@@ -1403,6 +1403,18 @@ app.delete('/api/cargaisons/:id', authMiddleware, isDriverMiddleware, (req, res)
 
 // ---- SEARCH ENDPOINTS ----
 
+// Normalize user-entered locations consistently for exact, direction-aware
+// origin/destination matching. SQLite's built-in lower() is ASCII-only, so the
+// normalization is exposed as a deterministic SQL function.
+function normalizeLocation(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
 // Calculate distance between two geographic points (Haversine formula)
 function calculateDistance(lat1, lng1, lat2, lng2) {
   const R = 6371; // Earth radius in km
@@ -1416,134 +1428,154 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
-// Score a trip match based on origin, destination, date, and capacity
-function scoreTrip(trip, originLat, originLng, destLat, destLng, date, reqWeight, reqVolume) {
-  let score = 0;
+db.function('normalize_location', { deterministic: true }, normalizeLocation);
+db.function('geo_distance_km', { deterministic: true }, calculateDistance);
 
-  // Origin proximity (30 points)
-  // If coordinates provided, use distance; otherwise use city name match
-  let originScore = 0;
-  if (originLat !== null && originLng !== null && trip.origin_lat !== null && trip.origin_lng !== null) {
-    const distOrigin = calculateDistance(originLat, originLng, trip.origin_lat, trip.origin_lng);
-    if (distOrigin < 5) {
-      originScore = 30; // Within 5km = exact match
-    } else if (distOrigin < 50) {
-      originScore = 20; // Within 50km = nearby
-    } else if (distOrigin < 150) {
-      originScore = 10; // Within 150km = acceptable
-    }
+function optionalDecimal(value, label) {
+  if (value === undefined || value === null || String(value).trim() === '') return { value: null };
+  const normalized = String(value).trim().replace(',', '.');
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return { error: `${label} must be a positive number` };
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return { error: `${label} must be a positive number` };
+  return { value: parsed };
+}
+
+function optionalCoordinatePair(latValue, lngValue, label) {
+  const hasLat = latValue !== undefined && latValue !== null && String(latValue).trim() !== '';
+  const hasLng = lngValue !== undefined && lngValue !== null && String(lngValue).trim() !== '';
+  if (!hasLat && !hasLng) return { lat: null, lng: null };
+  if (hasLat !== hasLng) return { error: `${label} latitude and longitude must both be provided` };
+  const lat = Number(String(latValue).trim().replace(',', '.'));
+  const lng = Number(String(lngValue).trim().replace(',', '.'));
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return { error: `${label} coordinates are invalid` };
   }
-  score += originScore;
+  return { lat, lng };
+}
 
-  // Destination proximity (30 points)
-  let destScore = 0;
-  if (destLat !== null && destLng !== null && trip.destination_lat !== null && trip.destination_lng !== null) {
-    const distDest = calculateDistance(destLat, destLng, trip.destination_lat, trip.destination_lng);
-    if (distDest < 5) {
-      destScore = 30;
-    } else if (distDest < 50) {
-      destScore = 20;
-    } else if (distDest < 150) {
-      destScore = 10;
-    }
-  }
-  score += destScore;
-
-  // Date compatibility (20 points)
-  if (trip.departure_date === date) {
-    score += 20; // Exact date match
-  } else {
-    // Check if dates are close (within 3 days)
-    const tripDate = new Date(trip.departure_date);
-    const searchDate = new Date(date);
-    const dayDiff = Math.abs((tripDate - searchDate) / (1000 * 60 * 60 * 24));
-    if (dayDiff <= 3) {
-      score += 10;
-    }
-  }
-
-  // Weight compatibility (10 points)
-  if (trip.available_weight >= reqWeight) {
-    score += 10;
-  }
-
-  // Volume compatibility (10 points)
-  if (reqVolume === null || trip.available_volume === null || trip.available_volume >= reqVolume) {
-    score += 10;
-  }
-
-  return score;
+function isIsoCalendarDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day;
 }
 
 // Search available trips (customer search)
 app.get('/api/search/trips', async (req, res) => {
   try {
     const {
+      origin_name,
       origin_lat,
       origin_lng,
+      destination_name,
       destination_lat,
       destination_lng,
       date,
       required_weight,
-      required_volume
+      required_volume,
+      truck_type
     } = req.query;
 
-    // Validate required parameters
-    if (!date || !required_weight) {
-      return res.status(400).json({
-        success: false,
-        message: 'Date and required weight are required'
-      });
+    const weightResult = optionalDecimal(required_weight, 'Required weight');
+    const volumeResult = optionalDecimal(required_volume, 'Required volume');
+    const originCoordinates = optionalCoordinatePair(origin_lat, origin_lng, 'Origin');
+    const destinationCoordinates = optionalCoordinatePair(destination_lat, destination_lng, 'Destination');
+    const validationError = weightResult.error || volumeResult.error || originCoordinates.error || destinationCoordinates.error;
+    if (validationError) return res.status(400).json({ success: false, message: validationError });
+
+    const originName = typeof origin_name === 'string' ? normalizeLocation(origin_name) : '';
+    const destinationName = typeof destination_name === 'string' ? normalizeLocation(destination_name) : '';
+    if (origin_name !== undefined && !originName) {
+      return res.status(400).json({ success: false, message: 'Origin must not be blank' });
+    }
+    if (destination_name !== undefined && !destinationName) {
+      return res.status(400).json({ success: false, message: 'Destination must not be blank' });
+    }
+    if (date !== undefined && !isIsoCalendarDate(date)) {
+      return res.status(400).json({ success: false, message: 'Date must be a valid YYYY-MM-DD date' });
+    }
+    if (truck_type !== undefined && !VALID_TRUCK_TYPES.includes(String(truck_type))) {
+      return res.status(400).json({ success: false, message: 'Invalid truck type' });
     }
 
-    const reqWeight = parseFloat(required_weight);
-    const reqVolume = required_volume ? parseFloat(required_volume) : null;
-    const originLat = origin_lat ? parseFloat(origin_lat) : null;
-    const originLng = origin_lng ? parseFloat(origin_lng) : null;
-    const destLat = destination_lat ? parseFloat(destination_lat) : null;
-    const destLng = destination_lng ? parseFloat(destination_lng) : null;
-
-    if (isNaN(reqWeight) || reqWeight <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Required weight must be a positive number'
-      });
+    const page = Number(req.query.page ?? 1);
+    const pageSize = Number(req.query.page_size ?? 20);
+    if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+      return res.status(400).json({ success: false, message: 'Invalid pagination parameters' });
     }
 
-    if (reqVolume !== null && isNaN(reqVolume)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Required volume must be a valid number'
-      });
+    const where = ["t.status = 'PUBLISHED'", "t.departure_date >= date('now')", 't.available_weight > 0'];
+    const parameters = [];
+    const addLocationFilter = (columnPrefix, name, coordinates) => {
+      if (coordinates.lat !== null) {
+        if (name) {
+          where.push(`((t.${columnPrefix}_lat IS NOT NULL AND t.${columnPrefix}_lng IS NOT NULL AND geo_distance_km(?, ?, t.${columnPrefix}_lat, t.${columnPrefix}_lng) <= 5) OR ((t.${columnPrefix}_lat IS NULL OR t.${columnPrefix}_lng IS NULL) AND normalize_location(t.${columnPrefix}_name) = ?))`);
+          parameters.push(coordinates.lat, coordinates.lng, name);
+        } else {
+          where.push(`t.${columnPrefix}_lat IS NOT NULL AND t.${columnPrefix}_lng IS NOT NULL AND geo_distance_km(?, ?, t.${columnPrefix}_lat, t.${columnPrefix}_lng) <= 5`);
+          parameters.push(coordinates.lat, coordinates.lng);
+        }
+      } else if (name) {
+        where.push(`normalize_location(t.${columnPrefix}_name) = ?`);
+        parameters.push(name);
+      }
+    };
+    addLocationFilter('origin', originName, originCoordinates);
+    addLocationFilter('destination', destinationName, destinationCoordinates);
+    if (date !== undefined) {
+      where.push('t.departure_date = ?');
+      parameters.push(String(date));
+    }
+    if (weightResult.value !== null) {
+      where.push('t.available_weight >= ?');
+      parameters.push(weightResult.value);
+    }
+    if (volumeResult.value !== null) {
+      where.push('t.available_volume IS NOT NULL AND t.available_volume >= ?');
+      parameters.push(volumeResult.value);
+    }
+    if (truck_type !== undefined) {
+      where.push('tr.truck_type = ?');
+      parameters.push(String(truck_type));
     }
 
-    // Get all published trips
-    const stmt = db.prepare(`
-      SELECT t.*, u.email, u.role, p.full_name, p.rating, p.rating_count
+    const fromAndWhere = `
       FROM trips t
       JOIN users u ON t.driver_id = u.id
       JOIN profiles p ON u.id = p.user_id
-      WHERE t.status = 'PUBLISHED'
-        AND t.departure_date >= ?
-        AND t.available_weight >= ?
-      ORDER BY t.created_at DESC
-    `);
+      JOIN trucks tr ON tr.id = t.truck_id
+      WHERE ${where.join('\n        AND ')}
+    `;
+    const total = db.prepare(`SELECT COUNT(*) AS count ${fromAndWhere}`).get(...parameters).count;
+    const trips = db.prepare(`
+      SELECT t.*, u.email, p.full_name, p.rating, p.rating_count,
+             tr.truck_type, tr.brand, tr.model, tr.max_weight, tr.max_volume,
+             tr.registration_number, tr.image_url,
+             tr.created_at AS truck_created_at, tr.updated_at AS truck_updated_at
+      ${fromAndWhere}
+      ORDER BY t.departure_date ASC, t.created_at DESC, t.id DESC
+      LIMIT ? OFFSET ?
+    `).all(...parameters, pageSize, (page - 1) * pageSize);
 
-    const trips = stmt.all(date, reqWeight);
-
-    // Score and filter trips
-    const scoredTrips = trips
-      .map(trip => ({
-        ...trip,
-        matchScore: scoreTrip(trip, originLat, originLng, destLat, destLng, date, reqWeight, reqVolume)
-      }))
-      .filter(trip => trip.matchScore > 0)
-      .sort((a, b) => b.matchScore - a.matchScore);
-
-    // Get truck details for each trip
-    const enrichedTrips = scoredTrips.map(trip => {
-      const truckStmt = db.prepare('SELECT * FROM trucks WHERE id = ?');
-      const truck = truckStmt.get(trip.truck_id);
+    const enrichedTrips = trips.map(trip => {
+      const truck = {
+        id: trip.truck_id,
+        driver_id: trip.driver_id,
+        truck_type: trip.truck_type,
+        brand: trip.brand,
+        model: trip.model,
+        max_weight: trip.max_weight,
+        max_volume: trip.max_volume,
+        registration_number: trip.registration_number,
+        image_url: trip.image_url,
+        created_at: trip.truck_created_at,
+        updated_at: trip.truck_updated_at,
+      };
       return {
         trip: {
           id: trip.id,
@@ -1572,13 +1604,16 @@ app.get('/api/search/trips', async (req, res) => {
           rating_count: trip.rating_count,
         },
         truck: truck,
-        matchScore: trip.matchScore,
+        matchScore: 100,
       };
     });
 
     res.json({
       success: true,
-      count: enrichedTrips.length,
+      count: total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
       trips: enrichedTrips
     });
   } catch (error) {
