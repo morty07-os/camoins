@@ -6,6 +6,7 @@ import 'pages/register_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/customer_home_page.dart';
 import 'pages/customer_history_page.dart';
+import 'pages/customer_navigation.dart';
 import 'pages/driver_navigation.dart';
 import 'pages/add_truck_page.dart';
 import 'pages/edit_truck_page.dart';
@@ -84,6 +85,11 @@ class BackhaulApp extends ConsumerWidget {
             location.startsWith('/publish-return-trip') ||
             location.startsWith('/driver-history');
 
+        final isCustomerRoute = location.startsWith('/customer') ||
+            location.startsWith('/search-results') ||
+            location.startsWith('/search-trip-details') ||
+            location.startsWith('/request-form');
+
         // A customer must not access driver (truck management) screens
         if (isAuthenticated && user?.isCustomer == true && isDriverRoute) {
           return '/customer-home';
@@ -92,7 +98,7 @@ class BackhaulApp extends ConsumerWidget {
         // A driver must not access customer screens
         if (isAuthenticated &&
             user?.isDriver == true &&
-            location.startsWith('/customer')) {
+            isCustomerRoute) {
           return '/driver-home';
         }
 
@@ -159,13 +165,53 @@ class BackhaulApp extends ConsumerWidget {
             return TruckDetailsPage(truckId: truckId);
           },
         ),
-        GoRoute(
-          path: '/customer-home',
-          builder: (context, state) => const CustomerHomePage(),
-        ),
-        GoRoute(
-          path: '/customer-history',
-          builder: (context, state) => const CustomerHistoryPage(),
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) => CustomerNavigation(
+            navigationShell: navigationShell,
+          ),
+          branches: [
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/customer-home',
+                  builder: (context, state) => const CustomerHomePage(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/customer-trips',
+                  builder: (context, state) =>
+                      const TripSearchResultsPage(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/customer-messages',
+                  builder: (context, state) => const MessagesPage(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/customer-history',
+                  builder: (context, state) => const CustomerHistoryPage(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/customer-profile',
+                  builder: (context, state) => const ProfilePage(),
+                ),
+              ],
+            ),
+          ],
         ),
         GoRoute(
           path: '/driver-history',
@@ -173,11 +219,14 @@ class BackhaulApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/search-trips',
-          builder: (context, state) => const TripSearchResultsPage(),
+          redirect: (context, state) =>
+              ref.read(authProvider).currentUser?.isCustomer == true
+                  ? '/customer-trips'
+                  : '/driver-home',
         ),
         GoRoute(
           path: '/search-results',
-          builder: (context, state) => const TripSearchResultsPage(),
+          redirect: (context, state) => '/customer-trips',
         ),
         GoRoute(
           path: '/search-trip-details/:id',
@@ -218,10 +267,10 @@ class BackhaulApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/messages',
-          builder: (context, state) => MessagesPage(
-            initialConversationId:
-                state.extra is int ? state.extra as int : null,
-          ),
+          redirect: (context, state) =>
+              ref.read(authProvider).currentUser?.isDriver == true
+                  ? '/driver-messages'
+                  : '/customer-messages',
         ),
         GoRoute(
           path: '/chat/:id',
@@ -237,7 +286,10 @@ class BackhaulApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/profile',
-          builder: (context, state) => const ProfilePage(),
+          redirect: (context, state) =>
+              ref.read(authProvider).currentUser?.isDriver == true
+                  ? '/driver-profile'
+                  : '/customer-profile',
         ),
         GoRoute(
           path: '/',

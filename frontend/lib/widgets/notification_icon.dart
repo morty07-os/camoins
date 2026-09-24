@@ -29,7 +29,7 @@ class NotificationIcon extends ConsumerWidget {
             color: color,
           ),
           tooltip: 'Notifications',
-          onPressed: () => context.go('/notifications'),
+          onPressed: () => context.push('/notifications'),
         ),
         if (unreadCount > 0)
           Positioned(
@@ -89,7 +89,7 @@ class NotificationIconWithCount extends ConsumerWidget {
     final unreadCount = ref.watch(unreadNotificationCountProvider);
 
     return GestureDetector(
-      onTap: onTap ?? () => context.go('/notifications'),
+      onTap: onTap ?? () => context.push('/notifications'),
       child: Stack(
         clipBehavior: Clip.none,
         children: [

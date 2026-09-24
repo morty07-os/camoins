@@ -125,6 +125,10 @@ async function run() {
   assert.equal(response.status, 200);
   assert.equal(response.data.count, 5, 'no filters returns every eligible trip');
 
+  response = await search({ origin_name: '', destination_name: '', date: '', truck_type: '' });
+  assert.equal(response.status, 200);
+  assert.equal(response.data.count, 5, 'blank optional filters impose no restriction');
+
   response = await search({ origin_name: '  ALGER  ' });
   assert.deepEqual(new Set(response.data.trips.map(item => item.trip.id)), new Set([exact.id, oran.id, later.id, booked.id]));
 

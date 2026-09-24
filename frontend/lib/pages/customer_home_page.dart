@@ -120,7 +120,7 @@ class CustomerHomePage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    onPressed: () => context.push('/search-trips'),
+                    onPressed: () => context.go('/customer-trips'),
                     icon: const Icon(Icons.search_rounded),
                     label: const Text('Rechercher un trajet'),
                   ),
@@ -139,7 +139,7 @@ class CustomerHomePage extends ConsumerWidget {
                   title: const Text('Mes transports'),
                   subtitle: const Text('Historique de vos livraisons terminées'),
                   trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => context.push('/customer-history'),
+                  onTap: () => context.go('/customer-history'),
                 ),
                 const Divider(),
                 ListTile(
@@ -147,7 +147,7 @@ class CustomerHomePage extends ConsumerWidget {
                   title: const Text('Messages'),
                   subtitle: const Text('Vos conversations avec les transporteurs'),
                   trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => context.push('/messages'),
+                  onTap: () => context.go('/customer-messages'),
                 ),
                 const Divider(),
                 ListTile(
@@ -155,7 +155,7 @@ class CustomerHomePage extends ConsumerWidget {
                   title: const Text('Profil'),
                   subtitle: const Text('Vos informations personnelles'),
                   trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => context.push('/profile'),
+                  onTap: () => context.go('/customer-profile'),
                 ),
                 const Divider(),
                 ListTile(
