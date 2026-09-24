@@ -13,7 +13,6 @@ import 'pages/truck_details_page.dart';
 import 'pages/publish_return_trip_page.dart';
 import 'pages/edit_return_trip_page.dart';
 import 'pages/return_trip_details_page.dart';
-import 'pages/trip_search_page.dart';
 import 'pages/trip_search_results_page.dart';
 import 'pages/search_trip_details_page.dart';
 import 'pages/request_form_page.dart';
@@ -174,14 +173,11 @@ class BackhaulApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/search-trips',
-          builder: (context, state) => const TripSearchPage(),
+          builder: (context, state) => const TripSearchResultsPage(),
         ),
         GoRoute(
           path: '/search-results',
-          builder: (context, state) {
-            final results = state.extra as List? ?? [];
-            return TripSearchResultsPage(results: results);
-          },
+          builder: (context, state) => const TripSearchResultsPage(),
         ),
         GoRoute(
           path: '/search-trip-details/:id',

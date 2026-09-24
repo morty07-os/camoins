@@ -14,6 +14,7 @@ import 'storage_service.dart';
 class ApiService {
   ApiService({http.Client? client}) : _client = client;
   final http.Client? _client;
+
   /// REST base URL resolved from [AppConfig] (no hardcoded hosts).
   static String get baseUrl => AppConfig.apiBaseUrl;
 
@@ -616,34 +617,54 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> searchTrips({
+    String? originName,
     double? originLat,
     double? originLng,
+    String? destinationName,
     double? destinationLat,
     double? destinationLng,
-    required String date,
-    required double requiredWeight,
+    String? date,
+    double? requiredWeight,
     double? requiredVolume,
+    String? truckType,
+    int page = 1,
+    int pageSize = 20,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/search/trips').replace(
         queryParameters: {
+          if (originName != null && originName.trim().isNotEmpty)
+            'origin_name': originName.trim(),
           if (originLat != null) 'origin_lat': originLat.toString(),
           if (originLng != null) 'origin_lng': originLng.toString(),
+          if (destinationName != null && destinationName.trim().isNotEmpty)
+            'destination_name': destinationName.trim(),
           if (destinationLat != null)
             'destination_lat': destinationLat.toString(),
           if (destinationLng != null)
             'destination_lng': destinationLng.toString(),
-          'date': date,
-          'required_weight': requiredWeight.toString(),
+          if (date != null && date.trim().isNotEmpty) 'date': date.trim(),
+          if (requiredWeight != null)
+            'required_weight': requiredWeight.toString(),
           if (requiredVolume != null)
             'required_volume': requiredVolume.toString(),
+          if (truckType != null && truckType.trim().isNotEmpty)
+            'truck_type': truckType.trim(),
+          'page': page.toString(),
+          'page_size': pageSize.toString(),
         },
       );
 
-      final response = await http.get(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
+      final headers = await _authHeaders();
+      final response = await (_client?.get(
+                uri,
+                headers: headers,
+              ) ??
+              http.get(
+                uri,
+                headers: headers,
+              ))
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -651,6 +672,9 @@ class ApiService {
         return {
           'success': true,
           'trips': data['trips'] as List? ?? [],
+          'count': data['count'] ?? 0,
+          'page': data['page'] ?? page,
+          'totalPages': data['totalPages'] ?? 0,
         };
       } else {
         return {
@@ -1111,21 +1135,22 @@ class ApiService {
                 }),
               ) ??
               http.post(
-            Uri.parse('$baseUrl/ratings'),
-            headers: await _authHeaders(),
-            body: jsonEncode({
-              'trip_id': tripId,
-              'request_id': requestId,
-              'reviewed_user_id': reviewedUserId,
-              'rating': rating,
-              if (comment != null && comment.isNotEmpty) 'comment': comment,
-            }),
-          ))
+                Uri.parse('$baseUrl/ratings'),
+                headers: await _authHeaders(),
+                body: jsonEncode({
+                  'trip_id': tripId,
+                  'request_id': requestId,
+                  'reviewed_user_id': reviewedUserId,
+                  'rating': rating,
+                  if (comment != null && comment.isNotEmpty) 'comment': comment,
+                }),
+              ))
           .timeout(const Duration(seconds: 10));
     } on TimeoutException {
       throw Exception('Le serveur met trop de temps à répondre. Réessayez.');
     } on http.ClientException {
-      throw Exception('Impossible de joindre le serveur. Vérifiez votre connexion.');
+      throw Exception(
+          'Impossible de joindre le serveur. Vérifiez votre connexion.');
     }
 
     final Map<String, dynamic> data;
@@ -1172,24 +1197,31 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> _completionApi(String path, {bool post = false}) async {
+  Future<Map<String, dynamic>> _completionApi(String path,
+      {bool post = false}) async {
     try {
       final uri = Uri.parse('$baseUrl/$path');
       final headers = await _authHeaders();
       final response = await (post
-          ? (_client?.post(uri, headers: headers) ?? http.post(uri, headers: headers))
-          : (_client?.get(uri, headers: headers) ?? http.get(uri, headers: headers)))
+              ? (_client?.post(uri, headers: headers) ??
+                  http.post(uri, headers: headers))
+              : (_client?.get(uri, headers: headers) ??
+                  http.get(uri, headers: headers)))
           .timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) {
-        throw Exception(_errorMessage(response.body, 'Erreur du serveur (HTTP ${response.statusCode})'));
+        throw Exception(_errorMessage(
+            response.body, 'Erreur du serveur (HTTP ${response.statusCode})'));
       }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (data['success'] != true) throw Exception(data['message'] ?? 'La demande a échoué');
+      if (data['success'] != true) {
+        throw Exception(data['message'] ?? 'La demande a échoué');
+      }
       return data;
     } on TimeoutException {
       throw Exception('Le serveur met trop de temps à répondre. Réessayez.');
     } on http.ClientException {
-      throw Exception('Impossible de joindre le serveur. Vérifiez votre connexion.');
+      throw Exception(
+          'Impossible de joindre le serveur. Vérifiez votre connexion.');
     } on FormatException {
       throw Exception('Réponse du serveur invalide. Réessayez.');
     } on TypeError {
