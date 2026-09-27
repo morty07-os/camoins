@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../constants/algerian_wilayas.dart';
 
-/// A city name field with an optional expandable latitude/longitude section.
+/// A wilaya selector with an optional expandable latitude/longitude section.
 class LocationField extends StatefulWidget {
   final String label;
   final String hint;
@@ -67,16 +68,36 @@ class LocationFieldState extends State<LocationField> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedWilaya = algerianWilayas.contains(widget.controller.text)
+        ? widget.controller.text
+        : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: widget.controller,
+        DropdownButtonFormField<String>(
+          key: ValueKey('${widget.label}-$selectedWilaya'),
+          initialValue: selectedWilaya,
+          isExpanded: true,
           decoration: InputDecoration(
             labelText: widget.label,
-            hintText: widget.hint,
+            hintText: 'Choisir une wilaya',
             prefixIcon: Icon(widget.icon),
           ),
+          items: algerianWilayas
+              .map(
+                (wilaya) => DropdownMenuItem(
+                  value: wilaya,
+                  child: Text(wilaya, overflow: TextOverflow.ellipsis),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            setState(() => widget.controller.text = value ?? '');
+          },
+          validator: (value) => value == null
+              ? 'Veuillez choisir une wilaya'
+              : null,
         ),
         TextButton.icon(
           onPressed: () {

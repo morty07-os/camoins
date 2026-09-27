@@ -9,6 +9,18 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+Future<void> selectWilaya(
+  WidgetTester tester,
+  String label,
+  String wilaya,
+) async {
+  final field = tester.widget<DropdownButtonFormField<String>>(
+    find.widgetWithText(DropdownButtonFormField<String>, label),
+  );
+  field.onChanged!(wilaya);
+  await tester.pump();
+}
+
 Map<String, dynamic> resultJson(String driverName) => {
       'trip': {
         'id': driverName == 'Latest driver' ? 2 : 1,
@@ -74,17 +86,17 @@ http.Response emptyResponse() => http.Response(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('loads immediately and keeps only the newest debounced response',
+  testWidgets('loads immediately and keeps only the newest wilaya response',
       (tester) async {
     final requests = <Uri>[];
     final client = MockClient((request) async {
       requests.add(request.url);
       final origin = request.url.queryParameters['origin_name'];
-      if (origin == 'a') {
+      if (origin == 'Alger') {
         await Future<void>.delayed(const Duration(milliseconds: 700));
         return responseFor('Stale driver');
       }
-      if (origin == 'ab') {
+      if (origin == 'Oran') {
         await Future<void>.delayed(const Duration(milliseconds: 10));
         return responseFor('Latest driver');
       }
@@ -102,18 +114,15 @@ void main() {
     expect(requests.single.queryParameters['page'], '1');
     expect(requests.single.queryParameters.containsKey('origin_name'), isFalse);
 
-    final departure = find.widgetWithText(TextField, 'Départ');
-    await tester.enterText(departure, 'a');
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.enterText(departure, 'ab');
-    await tester.pump(const Duration(milliseconds: 400));
+    await selectWilaya(tester, 'Départ', 'Alger');
+    await selectWilaya(tester, 'Départ', 'Oran');
     await tester.pump(const Duration(milliseconds: 20));
     expect(find.text('Latest driver'), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 700));
     expect(find.text('Latest driver'), findsOneWidget);
     expect(find.text('Stale driver'), findsNothing);
-    expect(requests.last.queryParameters['origin_name'], 'ab');
+    expect(requests.last.queryParameters['origin_name'], 'Oran');
   });
 
   testWidgets('accepts decimal commas and sends canonical capacity units',
@@ -157,11 +166,8 @@ void main() {
     );
     await tester.pump();
 
-    await tester.enterText(find.widgetWithText(TextField, 'Départ'), 'Alger');
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Destination'),
-      'Oran',
-    );
+    await selectWilaya(tester, 'Départ', 'Alger');
+    await selectWilaya(tester, 'Destination', 'Oran');
     await tester.enterText(
       find.widgetWithText(TextField, 'Poids min. (kg)'),
       '1000',
@@ -173,8 +179,11 @@ void main() {
     expect(requests.last.queryParameters['destination_name'], 'Oran');
     expect(requests.last.queryParameters['required_weight'], '1000.0');
 
-    await tester.enterText(find.widgetWithText(TextField, 'Départ'), '');
-    await tester.pump(const Duration(milliseconds: 400));
+    tester
+        .widget<InputChip>(
+          find.widgetWithText(InputChip, 'Départ : Alger'),
+        )
+        .onDeleted!();
     await tester.pump();
     expect(requests.last.queryParameters.containsKey('origin_name'), isFalse);
     expect(requests.last.queryParameters['destination_name'], 'Oran');
@@ -203,11 +212,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Départ'),
-      'Constantine',
-    );
-    await tester.pump(const Duration(milliseconds: 400));
+    await selectWilaya(tester, 'Départ', 'Constantine');
     await tester.pump();
 
     expect(
@@ -252,7 +257,7 @@ void main() {
   testWidgets('request errors do not display stale matching trips',
       (tester) async {
     final client = MockClient((request) async {
-      if (request.url.queryParameters['origin_name'] == 'Erreur') {
+      if (request.url.queryParameters['origin_name'] == 'Alger') {
         return http.Response(
           jsonEncode({'success': false, 'message': 'Serveur indisponible'}),
           500,
@@ -272,8 +277,7 @@ void main() {
     await tester.pump();
     expect(find.text('Previously loaded driver'), findsOneWidget);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Départ'), 'Erreur');
-    await tester.pump(const Duration(milliseconds: 400));
+    await selectWilaya(tester, 'Départ', 'Alger');
     await tester.pump();
 
     expect(find.text('Impossible de charger les trajets'), findsOneWidget);
