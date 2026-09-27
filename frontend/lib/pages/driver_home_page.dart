@@ -24,96 +24,101 @@ class DriverHomePage extends ConsumerWidget {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-          _HeroHeader(
-            userName: profile?.fullName,
-            email: user?.email ?? '',
-          ),
-          const SizedBox(height: 20),
-          const SectionTitle(
-            title: 'Accès rapide',
-            subtitle: 'Gérez votre activité de transport',
-          ),
-          const SizedBox(height: 12),
-          _QuickAction(
-            icon: Icons.search_rounded,
-            title: 'Trouver un transport',
-            subtitle: 'Recherchez des charges à transporter',
-            onTap: () => _comingSoon(context),
-          ),
-          const SizedBox(height: 12),
-          _QuickAction(
-            icon: Icons.add_road_rounded,
-            title: 'Proposer un trajet',
-            subtitle: 'Publiez votre itinéraire et vos disponibilités',
-            onTap: () => GoRouter.of(context).go('/driver-trips'),
-          ),
-          const SizedBox(height: 12),
-          _QuickAction(
-            icon: Icons.local_shipping_rounded,
-            title: 'Gérer mes camions',
-            subtitle: 'Ajoutez, modifiez ou retirez vos camions',
-            onTap: () => GoRouter.of(context).go('/driver-trucks'),
-          ),
-          const SizedBox(height: 12),
-          _QuickAction(
-            icon: Icons.inbox_rounded,
-            title: 'Mes demandes',
-            subtitle: 'Consultez les demandes de vos clients',
-            onTap: () => GoRouter.of(context).go('/driver-requests'),
-          ),
-          const SizedBox(height: 24),
-          const SectionTitle(
-            title: 'Mes informations',
-            subtitle: 'Coordonnées visibles par vos clients',
-          ),
-          const SizedBox(height: 12),
-          Card(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                InfoRow(
-                  icon: Icons.phone_outlined,
-                  label: 'Téléphone',
-                  value: profile?.phone ?? '—',
+                _HeroHeader(
+                  userName: profile?.fullName,
+                  email: user?.email ?? '',
                 ),
-                const Divider(),
-                InfoRow(
-                  icon: Icons.location_city_outlined,
-                  label: 'Ville',
-                  value: profile?.city ?? '—',
+                const SizedBox(height: 20),
+                const SectionTitle(
+                  title: 'Accès rapide',
+                  subtitle: 'Gérez votre activité de transport',
                 ),
-                const Divider(),
-                InfoRow(
-                  icon: Icons.map_outlined,
-                  label: 'Wilaya',
-                  value: profile?.wilaya ?? '—',
+                const SizedBox(height: 12),
+                _QuickAction(
+                  icon: Icons.search_rounded,
+                  title: 'Trouver un transport',
+                  subtitle: 'Recherchez des charges à transporter',
+                  onTap: () => _comingSoon(context),
                 ),
+                const SizedBox(height: 12),
+                _QuickAction(
+                  icon: Icons.add_road_rounded,
+                  title: 'Proposer un trajet',
+                  subtitle: 'Publiez votre itinéraire et vos disponibilités',
+                  onTap: () => GoRouter.of(context).go('/driver-trips'),
+                ),
+                const SizedBox(height: 12),
+                _QuickAction(
+                  icon: Icons.local_shipping_rounded,
+                  title: 'Gérer mes camions',
+                  subtitle: 'Ajoutez, modifiez ou retirez vos camions',
+                  onTap: () => GoRouter.of(context).go('/driver-trucks'),
+                ),
+                const SizedBox(height: 12),
+                _QuickAction(
+                  icon: Icons.inbox_rounded,
+                  title: 'Mes demandes',
+                  subtitle: 'Consultez les demandes de vos clients',
+                  onTap: () => GoRouter.of(context).go('/driver-requests'),
+                ),
+                const SizedBox(height: 24),
+                const SectionTitle(
+                  title: 'Mes informations',
+                  subtitle: 'Coordonnées visibles par vos clients',
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Column(
+                    children: [
+                      InfoRow(
+                        icon: Icons.phone_outlined,
+                        label: 'Téléphone',
+                        value: profile?.phone ?? '—',
+                      ),
+                      const Divider(),
+                      InfoRow(
+                        icon: Icons.location_city_outlined,
+                        label: 'Ville',
+                        value: profile?.city ?? '—',
+                      ),
+                      const Divider(),
+                      InfoRow(
+                        icon: Icons.map_outlined,
+                        label: 'Wilaya',
+                        value: profile?.wilaya ?? '—',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: () => GoRouter.of(context).go('/driver-profile'),
+                  icon: const Icon(Icons.person_outline_rounded),
+                  label: const Text('Voir mon profil'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await ref.read(authProvider.notifier).logout();
+                  },
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Déconnexion'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.errorSoft),
+                  ),
+                ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => GoRouter.of(context).go('/driver-profile'),
-            icon: const Icon(Icons.person_outline_rounded),
-            label: const Text('Voir mon profil'),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () async {
-              await ref.read(authProvider.notifier).logout();
-            },
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text('Déconnexion'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.error,
-              side: const BorderSide(color: AppColors.errorSoft),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ],
         ),
       ),
     );
@@ -147,6 +152,13 @@ class _HeroHeader extends StatelessWidget {
           colors: [AppColors.primary, AppColors.secondary],
         ),
         borderRadius: BorderRadius.circular(AppTheme.radius),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryDark.withValues(alpha: 0.18),
+            blurRadius: 26,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
