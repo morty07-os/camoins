@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../constants/algerian_wilayas.dart';
 import '../models/search_result.dart';
 import '../models/truck.dart';
 import '../providers/notification_provider.dart' show apiServiceProvider;
@@ -26,8 +27,6 @@ class _TripSearchResultsPageState
   static const _debounceDuration = Duration(milliseconds: 350);
 
   late final ApiService _apiService;
-  final _originController = TextEditingController();
-  final _destinationController = TextEditingController();
   final _weightController = TextEditingController();
   final _volumeController = TextEditingController();
   final _dateController = TextEditingController();
@@ -35,6 +34,8 @@ class _TripSearchResultsPageState
 
   Timer? _debounce;
   List<TripSearchResult> _results = [];
+  String? _originWilaya;
+  String? _destinationWilaya;
   DateTime? _departureDate;
   String? _truckType;
   String? _weightError;
@@ -58,8 +59,6 @@ class _TripSearchResultsPageState
   @override
   void dispose() {
     _debounce?.cancel();
-    _originController.dispose();
-    _destinationController.dispose();
     _weightController.dispose();
     _volumeController.dispose();
     _dateController.dispose();
@@ -151,8 +150,8 @@ class _TripSearchResultsPageState
 
     try {
       final response = await _apiService.searchTrips(
-        originName: _originController.text,
-        destinationName: _destinationController.text,
+        originName: _originWilaya,
+        destinationName: _destinationWilaya,
         date: _departureDate == null ? null : _dateToIso(_departureDate!),
         requiredWeight: _parseCapacity(_weightController.text),
         requiredVolume: _parseCapacity(_volumeController.text),
@@ -236,10 +235,19 @@ class _TripSearchResultsPageState
     _onTextFilterChanged('');
   }
 
+  void _setWilayaFilter({required bool isOrigin, String? value}) {
+    if (isOrigin) {
+      _originWilaya = value;
+    } else {
+      _destinationWilaya = value;
+    }
+    _applyNonTextFilterChange();
+  }
+
   void _resetFilters() {
     _debounce?.cancel();
-    _originController.clear();
-    _destinationController.clear();
+    _originWilaya = null;
+    _destinationWilaya = null;
     _weightController.clear();
     _volumeController.clear();
     _dateController.clear();
@@ -251,8 +259,8 @@ class _TripSearchResultsPageState
   }
 
   int get _activeFilterCount => [
-        _originController.text.trim().isNotEmpty,
-        _destinationController.text.trim().isNotEmpty,
+        _originWilaya != null,
+        _destinationWilaya != null,
         _weightController.text.trim().isNotEmpty,
         _volumeController.text.trim().isNotEmpty,
         _departureDate != null,
@@ -308,28 +316,48 @@ class _TripSearchResultsPageState
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _originController,
-                  onChanged: _onTextFilterChanged,
-                  textInputAction: TextInputAction.next,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('origin-$_originWilaya'),
+                  initialValue: _originWilaya,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Départ',
-                    hintText: 'Ex : Alger',
+                    hintText: 'Choisir une wilaya',
                     prefixIcon: Icon(Icons.trip_origin_rounded),
                   ),
+                  items: algerianWilayas
+                      .map(
+                        (wilaya) => DropdownMenuItem(
+                          value: wilaya,
+                          child: Text(wilaya, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      _setWilayaFilter(isOrigin: true, value: value),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: TextField(
-                  controller: _destinationController,
-                  onChanged: _onTextFilterChanged,
-                  textInputAction: TextInputAction.next,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('destination-$_destinationWilaya'),
+                  initialValue: _destinationWilaya,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Destination',
-                    hintText: 'Ex : Sétif',
+                    hintText: 'Choisir une wilaya',
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
+                  items: algerianWilayas
+                      .map(
+                        (wilaya) => DropdownMenuItem(
+                          value: wilaya,
+                          child: Text(wilaya, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      _setWilayaFilter(isOrigin: false, value: value),
                 ),
               ),
             ],
@@ -439,16 +467,16 @@ class _TripSearchResultsPageState
       chips.add(InputChip(label: Text(label), onDeleted: onDeleted));
     }
 
-    if (_originController.text.trim().isNotEmpty) {
+    if (_originWilaya != null) {
       addChip(
-        'Départ : ${_originController.text.trim()}',
-        () => _clearTextFilter(_originController),
+        'Départ : $_originWilaya',
+        () => _setWilayaFilter(isOrigin: true),
       );
     }
-    if (_destinationController.text.trim().isNotEmpty) {
+    if (_destinationWilaya != null) {
       addChip(
-        'Destination : ${_destinationController.text.trim()}',
-        () => _clearTextFilter(_destinationController),
+        'Destination : $_destinationWilaya',
+        () => _setWilayaFilter(isOrigin: false),
       );
     }
     if (_weightController.text.trim().isNotEmpty) {

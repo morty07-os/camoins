@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../constants/algerian_wilayas.dart';
 import '../models/user.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
@@ -21,7 +22,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   late TextEditingController _fullNameController;
   late TextEditingController _phoneController;
   late TextEditingController _cityController;
-  late TextEditingController _wilayaController;
+  String? _selectedWilaya;
 
   bool _isEditing = false;
 
@@ -37,7 +38,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
     _phoneController = TextEditingController(text: user?.profile.phone ?? '');
     _cityController = TextEditingController(text: user?.profile.city ?? '');
-    _wilayaController = TextEditingController(text: user?.profile.wilaya ?? '');
+    final currentWilaya = user?.profile.wilaya;
+    _selectedWilaya = algerianWilayas.contains(currentWilaya)
+        ? currentWilaya
+        : null;
   }
 
   @override
@@ -45,7 +49,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _fullNameController.dispose();
     _phoneController.dispose();
     _cityController.dispose();
-    _wilayaController.dispose();
     super.dispose();
   }
 
@@ -62,9 +65,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           city: _cityController.text.trim().isEmpty
               ? null
               : _cityController.text.trim(),
-          wilaya: _wilayaController.text.trim().isEmpty
-              ? null
-              : _wilayaController.text.trim(),
+          wilaya: _selectedWilaya,
         );
 
     if (success && mounted) {
@@ -93,7 +94,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _fullNameController.text = user?.profile.fullName ?? '';
       _phoneController.text = user?.profile.phone ?? '';
       _cityController.text = user?.profile.city ?? '';
-      _wilayaController.text = user?.profile.wilaya ?? '';
+      final currentWilaya = user?.profile.wilaya;
+      _selectedWilaya = algerianWilayas.contains(currentWilaya)
+          ? currentWilaya
+          : null;
       _isEditing = false;
     });
   }
@@ -344,12 +348,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
           ),
           const SizedBox(height: 12),
-          TextFormField(
-            controller: _wilayaController,
+          DropdownButtonFormField<String>(
+            key: ValueKey(_selectedWilaya),
+            initialValue: _selectedWilaya,
+            isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Wilaya',
+              hintText: 'Choisir une wilaya',
               prefixIcon: Icon(Icons.map_outlined),
             ),
+            items: algerianWilayas
+                .map(
+                  (wilaya) => DropdownMenuItem(
+                    value: wilaya,
+                    child: Text(wilaya, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => setState(() => _selectedWilaya = value),
           ),
           const SizedBox(height: 28),
           Row(
