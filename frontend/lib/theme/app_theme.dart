@@ -3,24 +3,24 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  static const Color primary = Color(0xFF123B5D);
-  static const Color primaryDark = Color(0xFF0B2A44);
-  static const Color secondary = Color(0xFF1E5A7A);
-  static const Color accent = Color(0xFFF59E0B);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color success = Color(0xFF16A34A);
+  static const Color primary = Color(0xFF123C4A);
+  static const Color primaryDark = Color(0xFF082A35);
+  static const Color secondary = Color(0xFF176B74);
+  static const Color accent = Color(0xFFF4B942);
+  static const Color warning = Color(0xFFB45309);
+  static const Color success = Color(0xFF15805D);
   static const Color error = Color(0xFFDC2626);
-  static const Color background = Color(0xFFF5F7FA);
+  static const Color background = Color(0xFFF5F8F7);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color text = Color(0xFF172033);
-  static const Color textSecondary = Color(0xFF64748B);
+  static const Color text = Color(0xFF142D34);
+  static const Color textSecondary = Color(0xFF587078);
   static const Color textTertiary = Color(0xFF94A3B8);
-  static const Color border = Color(0xFFE2E8F0);
-  static const Color divider = Color(0xFFE2E8F0);
+  static const Color border = Color(0xFFDDE7E5);
+  static const Color divider = Color(0xFFE6EEEC);
 
-  static const Color primarySoft = Color(0xFFE6EEF5);
-  static const Color secondarySoft = Color(0xFFE4EEF5);
-  static const Color accentSoft = Color(0xFFFBEED9);
+  static const Color primarySoft = Color(0xFFE2EEEC);
+  static const Color secondarySoft = Color(0xFFDDF0EF);
+  static const Color accentSoft = Color(0xFFFFF2CE);
   static const Color successSoft = Color(0xFFE5F5EC);
   static const Color errorSoft = Color(0xFFFCEBEB);
 }
@@ -28,8 +28,8 @@ class AppColors {
 class AppTheme {
   AppTheme._();
 
-  static const double radius = 16;
-  static const double buttonHeight = 52;
+  static const double radius = 20;
+  static const double buttonHeight = 54;
 
   static ThemeData get light {
     final baseScheme = ColorScheme.fromSeed(
@@ -45,7 +45,7 @@ class AppTheme {
       secondaryContainer: AppColors.secondarySoft,
       onSecondaryContainer: AppColors.secondary,
       tertiary: AppColors.accent,
-      onTertiary: Colors.white,
+      onTertiary: AppColors.primaryDark,
       error: AppColors.error,
       onError: Colors.white,
       errorContainer: AppColors.errorSoft,
@@ -65,10 +65,33 @@ class AppTheme {
     );
 
     return base.copyWith(
-      textTheme: base.textTheme.apply(
-        bodyColor: AppColors.text,
-        displayColor: AppColors.text,
-      ),
+      textTheme: base.textTheme
+          .apply(bodyColor: AppColors.text, displayColor: AppColors.text)
+          .copyWith(
+            headlineMedium: const TextStyle(
+              fontSize: 28,
+              height: 1.15,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+              color: AppColors.text,
+            ),
+            titleLarge: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+              color: AppColors.text,
+            ),
+            bodyLarge: const TextStyle(
+              fontSize: 16,
+              height: 1.5,
+              color: AppColors.text,
+            ),
+            bodyMedium: const TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: AppColors.textSecondary,
+            ),
+          ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -86,11 +109,11 @@ class AppTheme {
         color: AppColors.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
-        shadowColor: Colors.transparent,
+        shadowColor: AppColors.primaryDark.withValues(alpha: 0.09),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radius),
-          side: const BorderSide(color: AppColors.border),
+          side: const BorderSide(color: AppColors.border, width: 0.8),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -135,10 +158,10 @@ class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.accent,
-          foregroundColor: Colors.white,
+          foregroundColor: AppColors.primaryDark,
           minimumSize: const Size(0, buttonHeight),
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          elevation: 0,
+          elevation: 1,
           textStyle: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
@@ -192,7 +215,7 @@ class AppTheme {
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        height: 68,
+        height: 74,
         indicatorColor: AppColors.accentSoft,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         iconTheme: WidgetStateProperty.resolveWith((states) {
@@ -204,13 +227,13 @@ class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: AppColors.primary,
             );
           }
           return const TextStyle(
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: FontWeight.w500,
             color: AppColors.textSecondary,
           );

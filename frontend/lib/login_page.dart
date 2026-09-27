@@ -49,7 +49,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (success && mounted) {
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
-        final pendingNotification = await NotificationNavigationService.getPendingNotification();
+        final pendingNotification =
+            await NotificationNavigationService.getPendingNotification();
         if (pendingNotification != null && mounted) {
           await NotificationNavigationService.handleNotificationTap(
             pendingNotification,
@@ -73,7 +74,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 40),
+            padding: EdgeInsets.fromLTRB(
+              24,
+              isDesktop ? 56 : 40,
+              24,
+              isDesktop ? 48 : 32,
+            ),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -94,15 +100,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               child: Column(
                 children: [
                   Container(
-                    width: 76,
-                    height: 76,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: const Icon(
                       Icons.local_shipping_rounded,
-                      size: 42,
+                      size: 38,
                       color: Colors.white,
                     ),
                   ),
@@ -118,7 +124,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Transport smarter. Drive further.',
+                    'Le transport qui rapproche les bonnes routes.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.white.withValues(alpha: 0.75),
@@ -130,140 +136,182 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: isDesktop ? 40 : 28,
+              ),
               child: Center(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth: isDesktop ? 420 : double.infinity,
                   ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Connexion',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.text,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Accédez à votre espace de transport',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        if (authState.sessionRestoreFailed) ...[
-                          Text(authState.error ?? 'Connexion indisponible'),
-                          TextButton.icon(
-                            onPressed: authState.isLoading
-                                ? null
-                                : () => ref.read(authProvider.notifier).loadCurrentUser(),
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Réessayer ma session'),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Adresse email',
-                            prefixIcon: Icon(Icons.mail_outline_rounded),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Veuillez saisir votre adresse email';
-                            }
-                            return null;
-                          },
-                          enabled: !authState.isLoading,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => _handleLogin(),
-                          decoration: InputDecoration(
-                            labelText: 'Mot de passe',
-                            prefixIcon: const Icon(Icons.lock_outline_rounded),
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
+                  child: Container(
+                    padding: EdgeInsets.all(isDesktop ? 32 : 0),
+                    decoration: isDesktop
+                        ? BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: AppColors.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primaryDark.withValues(
+                                  alpha: 0.08,
+                                ),
+                                blurRadius: 30,
+                                offset: const Offset(0, 14),
                               ),
-                              tooltip: _obscurePassword
-                                  ? 'Afficher le mot de passe'
-                                  : 'Masquer le mot de passe',
+                            ],
+                          )
+                        : null,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Heureux de vous revoir',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Connectez-vous pour gérer vos trajets et vos livraisons.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textSecondary,
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Veuillez saisir votre mot de passe';
-                            }
-                            return null;
-                          },
-                          enabled: !authState.isLoading,
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton(
-                          onPressed: authState.isLoading
-                              ? null
-                              : _handleLogin,
-                          child: authState.isLoading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('Se connecter'),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            const Expanded(child: Divider()),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
+                          const SizedBox(height: 24),
+                          if (authState.sessionRestoreFailed) ...[
+                            Text(authState.error ?? 'Connexion indisponible'),
+                            TextButton.icon(
+                              onPressed: authState.isLoading
+                                  ? null
+                                  : () => ref
+                                      .read(authProvider.notifier)
+                                      .loadCurrentUser(),
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Réessayer ma session'),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'Adresse email',
+                              prefixIcon: Icon(Icons.mail_outline_rounded),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Veuillez saisir votre adresse email';
+                              }
+                              return null;
+                            },
+                            enabled: !authState.isLoading,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) => _handleLogin(),
+                            decoration: InputDecoration(
+                              labelText: 'Mot de passe',
+                              prefixIcon:
+                                  const Icon(Icons.lock_outline_rounded),
+                              suffixIcon: IconButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                ),
+                                tooltip: _obscurePassword
+                                    ? 'Afficher le mot de passe'
+                                    : 'Masquer le mot de passe',
                               ),
-                              child: Text(
-                                'ou',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary.withValues(
-                                    alpha: 0.8,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Veuillez saisir votre mot de passe';
+                              }
+                              return null;
+                            },
+                            enabled: !authState.isLoading,
+                          ),
+                          const SizedBox(height: 24),
+                          FilledButton(
+                            onPressed:
+                                authState.isLoading ? null : _handleLogin,
+                            child: authState.isLoading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text('Se connecter'),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              const Expanded(child: Divider()),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Text(
+                                  'ou',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary.withValues(
+                                      alpha: 0.8,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const Expanded(child: Divider()),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        OutlinedButton.icon(
-                          onPressed: authState.isLoading
-                              ? null
-                              : () => context.push('/register'),
-                          icon: const Icon(Icons.person_add_alt_1_rounded),
-                          label: const Text('Créer un compte'),
-                        ),
-                      ],
+                              const Expanded(child: Divider()),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          OutlinedButton.icon(
+                            onPressed: authState.isLoading
+                                ? null
+                                : () => context.push('/register'),
+                            icon: const Icon(Icons.person_add_alt_1_rounded),
+                            label: const Text('Créer un compte'),
+                          ),
+                          const SizedBox(height: 22),
+                          const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.shield_outlined,
+                                size: 16,
+                                color: AppColors.textSecondary,
+                              ),
+                              SizedBox(width: 7),
+                              Flexible(
+                                child: Text(
+                                  'Connexion sécurisée · Données protégées',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
