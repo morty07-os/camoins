@@ -7,6 +7,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node test/run-tests.js",
+    "create-admin": "node scripts/create-admin.js",
+    "promote-admin": "node scripts/promote-admin.js",
     "test:auth-rate-limit": "node test/auth-rate-limit.test.js",
     "test:cors": "node test/cors.test.js"
   },

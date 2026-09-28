@@ -118,7 +118,7 @@ async function run() {
     cargo_description: 'Capacity verification',
   });
   assert.equal(booking.status, 201);
-  const accepted = await api('POST', `/requests/${booking.data.request.id}/accept`, driver);
+  const accepted = await api('POST', `/requests/${booking.data.request.id}/accept`, driver, { agreed_amount_minor: 10000 });
   assert.equal(accepted.status, 200);
 
   let response = await search();

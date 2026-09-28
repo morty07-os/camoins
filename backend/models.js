@@ -308,6 +308,10 @@ const TripModel = {
         WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).all(id);
       db.prepare(`UPDATE transport_requests SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP
         WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).run(id);
+      db.prepare(`UPDATE payments SET status = 'CANCELLED', commission_status = 'CANCELLED',
+        updated_at = CURRENT_TIMESTAMP WHERE request_id IN (
+          SELECT id FROM transport_requests WHERE trip_id = ?
+        ) AND status = 'PENDING_COLLECTION'`).run(id);
       this.updateStatus(id, status);
       return requests;
     })();
@@ -437,7 +441,7 @@ const TransportRequestModel = {
     const stmt = db.prepare(`
       SELECT id, trip_id, customer_id, requested_weight, requested_volume,
              cargo_description, pickup_location, delivery_location, agreed_price,
-             status, created_at, updated_at
+             status, agreed_amount_minor, currency, price_set_at, created_at, updated_at
       FROM transport_requests
       WHERE id = ?
     `);
@@ -448,7 +452,7 @@ const TransportRequestModel = {
     const stmt = db.prepare(`
       SELECT id, trip_id, customer_id, requested_weight, requested_volume,
              cargo_description, pickup_location, delivery_location, agreed_price,
-             status, created_at, updated_at
+             status, agreed_amount_minor, currency, price_set_at, created_at, updated_at
       FROM transport_requests
       WHERE customer_id = ?
       ORDER BY created_at DESC
@@ -460,7 +464,7 @@ const TransportRequestModel = {
     const stmt = db.prepare(`
       SELECT id, trip_id, customer_id, requested_weight, requested_volume,
              cargo_description, pickup_location, delivery_location, agreed_price,
-             status, created_at, updated_at
+             status, agreed_amount_minor, currency, price_set_at, created_at, updated_at
       FROM transport_requests
       WHERE trip_id = ?
       ORDER BY created_at DESC
@@ -472,7 +476,8 @@ const TransportRequestModel = {
     const stmt = db.prepare(`
       SELECT tr.id, tr.trip_id, tr.customer_id, tr.requested_weight, tr.requested_volume,
              tr.cargo_description, tr.pickup_location, tr.delivery_location, tr.agreed_price,
-             tr.status, tr.created_at, tr.updated_at,
+             tr.status, tr.agreed_amount_minor, tr.currency, tr.price_set_at,
+             tr.created_at, tr.updated_at,
              t.*, p.full_name, p.rating, p.rating_count
       FROM transport_requests tr
       JOIN trips t ON tr.trip_id = t.id
@@ -492,12 +497,14 @@ const TransportRequestModel = {
     return result.changes > 0;
   },
 
-  acceptWithCapacityUpdate(requestId, tripId) {
+  acceptWithCapacityUpdate(requestId, tripId, agreedAmountMinor) {
     // Use transaction to atomically:
     // 1. Get the request and verify capacity
     // 2. Update request status to ACCEPTED
     // 3. Reduce trip capacity
     const transaction = db.transaction(() => {
+      const Payments = require('./payments');
+      Payments.calculateSplit(agreedAmountMinor);
       // Get request
       const request = db.prepare(`
         SELECT trip_id, status, requested_weight, requested_volume FROM transport_requests WHERE id = ?
@@ -539,8 +546,11 @@ const TransportRequestModel = {
 
       // Update request status
       db.prepare(`
-        UPDATE transport_requests SET status = 'ACCEPTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?
-      `).run(requestId);
+        UPDATE transport_requests SET status = 'ACCEPTED', agreed_amount_minor = ?,
+          currency = 'DZD', price_set_at = CURRENT_TIMESTAMP, agreed_price = ?,
+          updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(agreedAmountMinor, `${(agreedAmountMinor / 100).toFixed(2)} DZD`, requestId);
+      Payments.createForAcceptedRequest(requestId, agreedAmountMinor);
 
       // Update trip capacity
       const newWeight = trip.available_weight - request.requested_weight;
@@ -593,6 +603,7 @@ const TransportRequestModel = {
       db.prepare(`
         UPDATE transport_requests SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP WHERE id = ?
       `).run(requestId);
+      require('./payments').cancelForRequest(requestId);
 
       return true;
     });

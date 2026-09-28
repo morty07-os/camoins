@@ -801,12 +801,14 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> acceptRequest(int id) async {
+  Future<Map<String, dynamic>> acceptRequest(int id,
+      {required int agreedAmountMinor}) async {
     try {
       final response = await http
           .post(
             Uri.parse('$baseUrl/requests/$id/accept'),
             headers: await _authHeaders(),
+            body: jsonEncode({'agreed_amount_minor': agreedAmountMinor}),
           )
           .timeout(const Duration(seconds: 10));
 
@@ -1234,6 +1236,26 @@ class ApiService {
 
   Future<void> confirmReceipt(int id) async {
     await _completionApi('requests/$id/confirm', post: true);
+  }
+
+  Future<void> markCashReceived(int paymentId) async {
+    await _completionApi('payments/$paymentId/cash-received', post: true);
+  }
+
+  Future<Map<String, dynamic>> getAdminDashboard() async {
+    return _completionApi('admin/dashboard');
+  }
+
+  Future<void> collectCommission(int paymentId, String reason) async {
+    final uri = Uri.parse('$baseUrl/admin/payments/$paymentId/collect-commission');
+    final response = await (_client?.post(uri,
+            headers: await _authHeaders(), body: jsonEncode({'reason': reason})) ??
+        http.post(uri,
+            headers: await _authHeaders(), body: jsonEncode({'reason': reason})));
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200 || data['success'] != true) {
+      throw Exception(data['message'] ?? 'Impossible d’enregistrer la commission');
+    }
   }
 
   Future<HistoryResponse> getTripHistory() async {

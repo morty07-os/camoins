@@ -17,7 +17,7 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('DRIVER', 'CUSTOMER')),
+      role TEXT NOT NULL CHECK(role IN ('DRIVER', 'CUSTOMER', 'ADMIN')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -192,6 +192,7 @@ function initializeDatabase() {
   `);
 
   migrateCompletion();
+  migratePaymentsAndAdmin();
 
   // Guards apply to existing databases too. Submitted ratings are immutable.
   db.exec(`
@@ -228,6 +229,93 @@ function initializeDatabase() {
   initializeIndexes();
 
   console.log('✓ Database tables initialized');
+}
+
+function migratePaymentsAndAdmin() {
+  const userSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get().sql;
+  if (!userSchema.includes("'ADMIN'")) {
+    const backupPath = `${dbPath}.pre-admin-payment-migration-${Date.now()}.bak`;
+    fs.copyFileSync(dbPath, backupPath);
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        db.exec(`
+          CREATE TABLE users_admin_migration (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('DRIVER', 'CUSTOMER', 'ADMIN')),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+          INSERT INTO users_admin_migration (id, email, password_hash, role, created_at)
+            SELECT id, email, password_hash, role, created_at FROM users;
+          DROP TABLE users;
+          ALTER TABLE users_admin_migration RENAME TO users;
+        `);
+      })();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+  }
+
+  const requestColumns = db.pragma('table_info(transport_requests)').map(column => column.name);
+  if (!requestColumns.includes('agreed_amount_minor')) {
+    db.exec('ALTER TABLE transport_requests ADD COLUMN agreed_amount_minor INTEGER');
+  }
+  if (!requestColumns.includes('currency')) {
+    db.exec("ALTER TABLE transport_requests ADD COLUMN currency TEXT NOT NULL DEFAULT 'DZD'");
+  }
+  if (!requestColumns.includes('price_set_at')) {
+    db.exec('ALTER TABLE transport_requests ADD COLUMN price_set_at TEXT');
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_id INTEGER NOT NULL UNIQUE,
+      amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
+      currency TEXT NOT NULL DEFAULT 'DZD' CHECK(currency = 'DZD'),
+      method TEXT NOT NULL DEFAULT 'CASH' CHECK(method IN ('CASH')),
+      status TEXT NOT NULL DEFAULT 'PENDING_COLLECTION'
+        CHECK(status IN ('PENDING_COLLECTION', 'PAID', 'CANCELLED', 'DISPUTED')),
+      commission_rate_bps INTEGER NOT NULL DEFAULT 900 CHECK(commission_rate_bps = 900),
+      platform_fee_minor INTEGER NOT NULL CHECK(platform_fee_minor >= 0),
+      driver_net_minor INTEGER NOT NULL CHECK(driver_net_minor >= 0),
+      commission_status TEXT NOT NULL DEFAULT 'DUE'
+        CHECK(commission_status IN ('DUE', 'COLLECTED', 'WAIVED', 'CANCELLED')),
+      cash_received_at TEXT,
+      commission_collected_at TEXT,
+      commission_collected_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (request_id) REFERENCES transport_requests(id) ON DELETE RESTRICT,
+      FOREIGN KEY (commission_collected_by) REFERENCES users(id) ON DELETE SET NULL,
+      CHECK(platform_fee_minor + driver_net_minor = amount_minor)
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      admin_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id INTEGER NOT NULL,
+      reason TEXT,
+      metadata_json TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE RESTRICT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_payments_status_created
+      ON payments(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_payments_commission_status
+      ON payments(commission_status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_created
+      ON admin_audit_logs(created_at DESC);
+  `);
+
+  if (db.pragma('foreign_key_check').length) {
+    throw new Error('Admin/payment migration foreign key check failed');
+  }
 }
 
 // Rebuild the CHECK constraint without changing any existing request or child row.

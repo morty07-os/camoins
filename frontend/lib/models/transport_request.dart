@@ -9,6 +9,8 @@ class TransportRequest {
   final String? deliveryLocation;
   final String agreedPrice;
   final String status; // PENDING, ACCEPTED, REJECTED, CANCELLED, COMPLETED
+  final int? agreedAmountMinor;
+  final String currency;
   final String createdAt;
   final String updatedAt;
 
@@ -23,6 +25,8 @@ class TransportRequest {
     this.deliveryLocation,
     required this.agreedPrice,
     required this.status,
+    this.agreedAmountMinor,
+    this.currency = 'DZD',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -39,6 +43,8 @@ class TransportRequest {
       deliveryLocation: json['delivery_location'],
       agreedPrice: json['agreed_price'] ?? 'Prix à convenir',
       status: json['status'] ?? 'PENDING',
+      agreedAmountMinor: _asIntOrNull(json['agreed_amount_minor']),
+      currency: json['currency'] ?? 'DZD',
       createdAt: json['created_at'] ?? '',
       updatedAt: json['updated_at'] ?? '',
     );
@@ -56,6 +62,8 @@ class TransportRequest {
       'delivery_location': deliveryLocation,
       'agreed_price': agreedPrice,
       'status': status,
+      'agreed_amount_minor': agreedAmountMinor,
+      'currency': currency,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };
@@ -77,6 +85,15 @@ class TransportRequest {
   bool get isRejected => status == 'REJECTED';
   bool get isCancelled => status == 'CANCELLED';
   bool get isCompleted => status == 'COMPLETED';
+
+  String? get agreedPriceLabel => agreedAmountMinor == null
+      ? null
+      : '${(agreedAmountMinor! / 100).toStringAsFixed(2)} $currency';
+
+  static int? _asIntOrNull(dynamic value) {
+    if (value == null) return null;
+    return value is int ? value : int.tryParse('$value');
+  }
 
   static String _formatNumber(double value) {
     if (value == value.roundToDouble()) {

@@ -6,6 +6,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const db = require('./database');
 const Completion = require('./completion');
+const Payments = require('./payments');
 const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel, RatingModel } = require('./models');
 const { generateToken, authMiddleware, verifyToken } = require('./auth');
 
@@ -419,6 +420,13 @@ const isDriverMiddleware = (req, res, next) => {
       success: false,
       message: 'Only drivers can access this resource'
     });
+  }
+  next();
+};
+
+const isAdminMiddleware = (req, res, next) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, message: 'Admin access required' });
   }
   next();
 };
@@ -1174,6 +1182,16 @@ app.post('/api/trips/:id/cancel', authMiddleware, isDriverMiddleware, (req, res)
       });
     }
 
+    const paidRequest = db.prepare(`SELECT p.id FROM payments p
+      JOIN transport_requests r ON r.id = p.request_id
+      WHERE r.trip_id = ? AND p.status = 'PAID' LIMIT 1`).get(trip.id);
+    if (paidRequest) {
+      return res.status(409).json({
+        success: false,
+        message: 'A trip with a recorded cash payment requires admin resolution before cancellation'
+      });
+    }
+
     const requests = TripModel.finishWithRequests(trip.id, 'CANCELLED');
     const updatedTrip = TripModel.findById(trip.id);
 
@@ -1624,6 +1642,9 @@ app.get('/api/search/trips', async (req, res) => {
 // POST /api/requests - Customer requests transport
 app.post('/api/requests', authMiddleware, (req, res) => {
   try {
+    if (req.user.role !== 'CUSTOMER') {
+      return res.status(403).json({ success: false, message: 'Only customers can request transport' });
+    }
     const { trip_id, requested_weight, requested_volume, cargo_description, pickup_location, delivery_location } = req.body;
 
     // Validate required fields
@@ -1840,6 +1861,13 @@ app.get('/api/requests/:id', authMiddleware, (req, res) => {
 app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, res) => {
   try {
     const requestId = parseInt(req.params.id);
+    const agreedAmountMinor = req.body && req.body.agreed_amount_minor;
+    if (!Number.isSafeInteger(agreedAmountMinor) || agreedAmountMinor <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'A positive agreed_amount_minor is required'
+      });
+    }
     const request = TransportRequestModel.findById(requestId);
 
     if (!request) {
@@ -1875,12 +1903,13 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
 
     try {
       // Accept with capacity update (transaction)
-      TransportRequestModel.acceptWithCapacityUpdate(requestId, request.trip_id);
+      TransportRequestModel.acceptWithCapacityUpdate(requestId, request.trip_id, agreedAmountMinor);
 
       const updatedRequest = TransportRequestModel.findById(requestId);
       const updatedTrip = TripModel.findById(request.trip_id);
 
       const conversation = ConversationModel.findOrCreateByRequestId(requestId);
+      const payment = Payments.findByRequestId(requestId);
 
       // Notify customer that request was accepted
       createNotification(request.customer_id,
@@ -1898,7 +1927,8 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
         message: 'Transport request accepted',
         request: updatedRequest,
         trip: updatedTrip,
-        conversation: conversation
+        conversation: conversation,
+        payment
       });
     } catch (error) {
       if (error.status || error.message.includes('Insufficient')) {
@@ -2021,6 +2051,14 @@ app.post('/api/requests/:id/cancel', authMiddleware, (req, res) => {
       });
     }
 
+    const payment = Payments.findByRequestId(requestId);
+    if (payment?.status === 'PAID') {
+      return res.status(409).json({
+        success: false,
+        message: 'A paid transport requires admin resolution before cancellation'
+      });
+    }
+
     // Cancel with capacity restore if accepted
     TransportRequestModel.cancelWithCapacityRestore(requestId, request.trip_id);
     const updatedRequest = TransportRequestModel.findById(requestId);
@@ -2067,9 +2105,47 @@ app.get('/api/conversations/:id', authMiddleware, (req, res) => {
   if (!conversation) return res.status(404).json({ success: false, message: 'Conversation introuvable' });
   if (!canAccessConversation(conversation, req.user.id)) return res.status(403).json({ success: false, message: 'Accès interdit' });
   const request = db.prepare('SELECT * FROM transport_requests WHERE id = ?').get(conversation.request_id);
+  const payment = Payments.findByRequestId(request.id);
   res.json({ success: true, conversation: { ...conversation, request_status: request.status,
     trip_id: request.trip_id, driver_finished_at: request.driver_finished_at,
-    customer_confirmed_at: request.customer_confirmed_at } });
+    customer_confirmed_at: request.customer_confirmed_at,
+    agreed_amount_minor: request.agreed_amount_minor, currency: request.currency,
+    payment_id: payment?.id ?? null, payment_status: payment?.status ?? null,
+    platform_fee_minor: payment?.platform_fee_minor ?? null,
+    driver_net_minor: payment?.driver_net_minor ?? null,
+    commission_status: payment?.commission_status ?? null } });
+});
+
+app.post('/api/payments/:id/cash-received', authMiddleware, isDriverMiddleware, (req, res) => {
+  try {
+    const payment = Payments.markCashReceived(Number(req.params.id), req.user.id);
+    res.json({ success: true, payment });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.status ? error.message : 'Unable to record cash payment'
+    });
+  }
+});
+
+app.get('/api/admin/dashboard', authMiddleware, isAdminMiddleware, (req, res) => {
+  res.json({
+    success: true,
+    summary: Payments.getAdminSummary(),
+    rides: Payments.listAcceptedRides()
+  });
+});
+
+app.post('/api/admin/payments/:id/collect-commission', authMiddleware, isAdminMiddleware, (req, res) => {
+  try {
+    const payment = Payments.collectCommission(Number(req.params.id), req.user.id, req.body?.reason);
+    res.json({ success: true, payment });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.status ? error.message : 'Unable to collect commission'
+    });
+  }
 });
 
 // ---- CONVERSATIONS & MESSAGES (Chat) ----
@@ -2630,8 +2706,11 @@ io.use((socket, next) => {
 
   try {
     const decoded = verifyToken(token);
-    socket.userId = decoded.id;
-    socket.userRole = decoded.role;
+    if (!decoded) return next(new Error('Invalid token'));
+    const currentUser = UserModel.findById(decoded.id);
+    if (!currentUser) return next(new Error('Invalid token'));
+    socket.userId = currentUser.id;
+    socket.userRole = currentUser.role;
     next();
   } catch (error) {
     next(new Error('Invalid token'));

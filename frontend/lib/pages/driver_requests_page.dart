@@ -59,51 +59,66 @@ class _DriverRequestsPageState extends ConsumerState<DriverRequestsPage> {
   }
 
   Future<void> _acceptRequest(TransportRequest request) async {
-    // Show confirmation dialog
-    final confirmed = await showDialog<bool>(
+    final priceController = TextEditingController();
+    String? priceError;
+    final agreedAmountMinor = await showDialog<int>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Accepter cette demande ?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Poids: ${request.weightLabel}',
-              style: const TextStyle(fontSize: 14),
-            ),
-            if (request.requestedVolume != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Volume: ${request.volumeLabel}',
-                style: const TextStyle(fontSize: 14),
+      builder: (context) => StatefulBuilder(builder: (context, setDialogState) {
+        return AlertDialog(
+          title: const Text('Prix convenu'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Poids: ${request.weightLabel}'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceController,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Prix total en DZD',
+                  suffixText: 'DZD',
+                  errorText: priceError,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Camoins reçoit 9 % de commission. Le chauffeur conserve 91 %. Le paiement est effectué en espèces.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
             ],
-            const SizedBox(height: 12),
-            const Text(
-              'La capacité disponible de votre trajet sera réduite en conséquence.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ANNULER'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final amount = double.tryParse(priceController.text.trim().replaceAll(',', '.'));
+                if (amount == null || !amount.isFinite || amount <= 0) {
+                  setDialogState(() => priceError = 'Saisissez un prix valide');
+                  return;
+                }
+                Navigator.pop(context, (amount * 100).round());
+              },
+              child: const Text('ACCEPTER'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('ANNULER'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('ACCEPTER'),
-          ),
-        ],
-      ),
+        );
+      }),
     );
+    priceController.dispose();
 
-    if (confirmed != true) return;
+    if (agreedAmountMinor == null) return;
 
     try {
       final apiService = ApiService();
-      final response = await apiService.acceptRequest(request.id);
+      final response = await apiService.acceptRequest(
+        request.id,
+        agreedAmountMinor: agreedAmountMinor,
+      );
 
       if (mounted) {
         if (response['success'] == true) {

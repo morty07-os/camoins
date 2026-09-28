@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const db = require('./database');
 
 const DEVELOPMENT_JWT_SECRET = 'backhaul-secret-key-change-in-production';
 const isProduction = process.env.NODE_ENV === 'production';
@@ -50,7 +51,11 @@ function authMiddleware(req, res, next) {
     });
   }
 
-  req.user = decoded;
+  const currentUser = db.prepare('SELECT id, email, role FROM users WHERE id = ?').get(decoded.id);
+  if (!currentUser) {
+    return res.status(401).json({ success: false, message: 'Account no longer exists' });
+  }
+  req.user = currentUser;
   next();
 }
 
