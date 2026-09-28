@@ -11,6 +11,13 @@ class Conversation {
   final String? otherUserName;
   final int unreadCount;
   final String? requestStatus;
+  final int? agreedAmountMinor;
+  final String currency;
+  final int? paymentId;
+  final String? paymentStatus;
+  final int? platformFeeMinor;
+  final int? driverNetMinor;
+  final String? commissionStatus;
 
   Conversation({
     required this.id,
@@ -25,6 +32,13 @@ class Conversation {
     this.otherUserName,
     this.unreadCount = 0,
     required this.requestStatus,
+    this.agreedAmountMinor,
+    this.currency = 'DZD',
+    this.paymentId,
+    this.paymentStatus,
+    this.platformFeeMinor,
+    this.driverNetMinor,
+    this.commissionStatus,
   });
 
   factory Conversation.fromJson(Map<String, dynamic> json) {
@@ -42,6 +56,13 @@ class Conversation {
       otherUserName: json['other_user_name'],
       unreadCount: json['unread_count'] ?? 0,
       requestStatus: json['request_status']?.toString(),
+      agreedAmountMinor: _asIntOrNull(json['agreed_amount_minor']),
+      currency: json['currency']?.toString() ?? 'DZD',
+      paymentId: _asIntOrNull(json['payment_id']),
+      paymentStatus: json['payment_status']?.toString(),
+      platformFeeMinor: _asIntOrNull(json['platform_fee_minor']),
+      driverNetMinor: _asIntOrNull(json['driver_net_minor']),
+      commissionStatus: json['commission_status']?.toString(),
     );
   }
 

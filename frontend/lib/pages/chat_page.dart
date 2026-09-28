@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/transport_updates_provider.dart';
 import '../services/chat_repository.dart';
 import '../services/chat_service.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../widgets/notification_icon.dart';
@@ -37,6 +38,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _isOtherTyping = false;
   bool _isConnected = true;
   bool _confirming = false;
+  bool _recordingCash = false;
 
   @override
   void initState() {
@@ -335,7 +337,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       body: Column(
         children: [
           conversation.when(
-            data: (value) => _completionCard(value, currentUserId),
+            data: (value) => Column(children: [
+              _paymentCard(value, currentUserId),
+              _completionCard(value, currentUserId),
+            ]),
             loading: () => const LinearProgressIndicator(),
             error: (error, _) => ListTile(
               title: Text(error.toString().replaceFirst('Exception: ', '')),
@@ -377,6 +382,67 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ]),
       ),
     );
+  }
+
+  Widget _paymentCard(Conversation conversation, int? userId) {
+    if (conversation.paymentId == null || conversation.agreedAmountMinor == null) {
+      return const SizedBox.shrink();
+    }
+    final amount = (conversation.agreedAmountMinor! / 100).toStringAsFixed(2);
+    final fee = ((conversation.platformFeeMinor ?? 0) / 100).toStringAsFixed(2);
+    final net = ((conversation.driverNetMinor ?? 0) / 100).toStringAsFixed(2);
+    final isPaid = conversation.paymentStatus == 'PAID';
+    final canRecord = conversation.driverId == userId &&
+        ref.read(authProvider).currentUser?.isDriver == true &&
+        conversation.paymentStatus == 'PENDING_COLLECTION';
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('$amount ${conversation.currency}',
+              style: Theme.of(context).textTheme.titleLarge),
+          const Text('Paiement en espèces'),
+          const SizedBox(height: 6),
+          Text(isPaid ? 'Espèces reçues' : 'À payer au chauffeur'),
+          if (ref.read(authProvider).currentUser?.isDriver == true) ...[
+            const SizedBox(height: 6),
+            Text('Commission Camoins (9 %) : $fee ${conversation.currency}'),
+            Text('Net chauffeur : $net ${conversation.currency}'),
+          ],
+          if (canRecord) ...[
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _recordingCash
+                  ? null
+                  : () => _markCashReceived(conversation.paymentId!),
+              icon: const Icon(Icons.payments_outlined),
+              label: Text(_recordingCash ? 'Enregistrement…' : 'Confirmer les espèces reçues'),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _markCashReceived(int paymentId) async {
+    setState(() => _recordingCash = true);
+    try {
+      await ApiService().markCashReceived(paymentId);
+      if (!mounted) return;
+      ref.invalidate(conversationDetailsProvider(widget.conversationId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paiement en espèces enregistré')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _recordingCash = false);
+    }
   }
 
   Future<void> _confirmReceipt(int requestId) async {

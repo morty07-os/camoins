@@ -58,7 +58,7 @@ function finishRequest(requestId, user, confirm = false) {
       : user.role !== 'DRIVER' || trip.driver_id !== user.id) fail(403, 'Accès interdit');
     if (request.status === 'COMPLETED' || (!confirm && request.status === 'AWAITING_CUSTOMER_CONFIRMATION')) return [];
     if (request.status !== (confirm ? 'AWAITING_CUSTOMER_CONFIRMATION' : 'ACCEPTED') ||
-        (!confirm && trip.status === 'CANCELLED')) {
+        (!confirm && trip.status !== 'IN_PROGRESS')) {
       fail(409, 'Cette demande ne peut pas être finalisée dans son état actuel');
     }
     return [transition(request, trip.driver_id, confirm)];

@@ -31,6 +31,7 @@ class User {
 
   bool get isDriver => role == 'DRIVER';
   bool get isCustomer => role == 'CUSTOMER';
+  bool get isAdmin => role == 'ADMIN';
 }
 
 class UserProfile {

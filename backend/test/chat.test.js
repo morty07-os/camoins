@@ -139,7 +139,7 @@ async function run() {
     res.status === 200 && res.data.conversation.id === firstConversationId,
   );
 
-  res = await api('POST', `/requests/${requestId}/accept`, driver);
+  res = await api('POST', `/requests/${requestId}/accept`, driver, { agreed_amount_minor: 10000 });
   report(
     'accepting request reuses the existing conversation',
     res.status === 200 && res.data.conversation.id === firstConversationId,
@@ -231,7 +231,7 @@ async function run() {
       res.data.conversation.request_id === secondRequestId,
   );
 
-  res = await api('POST', `/requests/${secondRequestId}/accept`, driver);
+  res = await api('POST', `/requests/${secondRequestId}/accept`, driver, { agreed_amount_minor: 10000 });
   report(
     'accepting second request keeps its conversation identity',
     res.status === 200 && res.data.conversation.id === secondConversationId,

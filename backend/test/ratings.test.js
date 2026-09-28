@@ -102,7 +102,7 @@ async function run() {
   assert.equal((await api('GET', '/trips/history')).status, 401);
   assert.equal((await api('GET', '/users/' + driverId + '/ratings')).status, 401);
   assert.equal((await api('POST', '/ratings', customer, body)).status, 403);
-  assert.equal((await api('POST', '/requests/' + requestId + '/accept', driver)).status, 200);
+  assert.equal((await api('POST', '/requests/' + requestId + '/accept', driver, { agreed_amount_minor: 10000 })).status, 200);
   assert.equal((await api('POST', '/trips/' + tripId + '/start', driver)).status, 200);
   assert.equal((await api('POST', '/ratings', customer, body)).status, 403);
   assert.equal((await api('POST', '/trips/' + tripId + '/complete', driver)).status, 200);
@@ -157,7 +157,7 @@ async function run() {
   }
   const secondTrip = await trip();
   const secondRequest = await request(secondTrip);
-  await api('POST', '/requests/' + secondRequest + '/accept', driver);
+  await api('POST', '/requests/' + secondRequest + '/accept', driver, { agreed_amount_minor: 10000 });
   await api('POST', '/trips/' + secondTrip + '/start', driver);
   await api('POST', '/trips/' + secondTrip + '/complete', driver);
   assert.equal((await api('POST', '/requests/' + secondRequest + '/confirm', customer)).status, 200);

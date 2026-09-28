@@ -21,6 +21,7 @@ import 'pages/driver_requests_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/notifications_page.dart';
+import 'pages/admin_dashboard_page.dart';
 import 'models/trip.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
@@ -62,7 +63,9 @@ class BackhaulApp extends ConsumerWidget {
 
         // Authenticated and on auth route, redirect to home
         if (isAuthenticated && isAuthRoute) {
-          if (user?.isDriver ?? false) {
+          if (user?.isAdmin ?? false) {
+            return '/admin';
+          } else if (user?.isDriver ?? false) {
             return '/driver-home';
           } else {
             return '/customer-home';
@@ -71,7 +74,9 @@ class BackhaulApp extends ConsumerWidget {
 
         // Authenticated and on root, redirect to appropriate home
         if (isAuthenticated && location == '/') {
-          if (user?.isDriver ?? false) {
+          if (user?.isAdmin ?? false) {
+            return '/admin';
+          } else if (user?.isDriver ?? false) {
             return '/driver-home';
           } else {
             return '/customer-home';
@@ -89,6 +94,14 @@ class BackhaulApp extends ConsumerWidget {
             location.startsWith('/search-results') ||
             location.startsWith('/search-trip-details') ||
             location.startsWith('/request-form');
+
+        final isAdminRoute = location.startsWith('/admin');
+        if (isAuthenticated && user?.isAdmin == true && !isAdminRoute) {
+          return '/admin';
+        }
+        if (isAuthenticated && user?.isAdmin != true && isAdminRoute) {
+          return user?.isDriver == true ? '/driver-home' : '/customer-home';
+        }
 
         // A customer must not access driver (truck management) screens
         if (isAuthenticated && user?.isCustomer == true && isDriverRoute) {
@@ -112,6 +125,10 @@ class BackhaulApp extends ConsumerWidget {
         GoRoute(
           path: '/register',
           builder: (context, state) => const RegisterPage(),
+        ),
+        GoRoute(
+          path: '/admin',
+          builder: (context, state) => const AdminDashboardPage(),
         ),
         GoRoute(
           path: '/driver-home',
