@@ -123,7 +123,7 @@ class _DriverRequestsPageState extends ConsumerState<DriverRequestsPage> {
       if (mounted) {
         if (response['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Transport accepté')),
+            const SnackBar(content: Text('Prix envoyé au client pour confirmation')),
           );
           _loadRequests();
         } else {

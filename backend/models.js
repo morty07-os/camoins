@@ -305,9 +305,9 @@ const TripModel = {
         throw error;
       }
       const requests = db.prepare(`SELECT id, customer_id, status FROM transport_requests
-        WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).all(id);
+        WHERE trip_id = ? AND status IN ('PENDING', 'PRICE_PROPOSED', 'ACCEPTED')`).all(id);
       db.prepare(`UPDATE transport_requests SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP
-        WHERE trip_id = ? AND status IN ('PENDING', 'ACCEPTED')`).run(id);
+        WHERE trip_id = ? AND status IN ('PENDING', 'PRICE_PROPOSED', 'ACCEPTED')`).run(id);
       db.prepare(`UPDATE payments SET status = 'CANCELLED', commission_status = 'CANCELLED',
         updated_at = CURRENT_TIMESTAMP WHERE request_id IN (
           SELECT id FROM transport_requests WHERE trip_id = ?
@@ -497,6 +497,36 @@ const TransportRequestModel = {
     return result.changes > 0;
   },
 
+  proposePrice(requestId, tripId, agreedAmountMinor) {
+    const Payments = require('./payments');
+    Payments.calculateSplit(agreedAmountMinor);
+    return db.transaction(() => {
+      const request = db.prepare(`SELECT trip_id, status FROM transport_requests WHERE id = ?`).get(requestId);
+      const trip = db.prepare(`SELECT status FROM trips WHERE id = ?`).get(tripId);
+      if (!request || !trip) throw Object.assign(new Error('Request or trip not found'), { status: 404 });
+      if (request.trip_id !== tripId || request.status !== 'PENDING' || trip.status !== 'PUBLISHED') {
+        throw Object.assign(new Error('Only pending requests on published trips can receive a price'), { status: 409 });
+      }
+      db.prepare(`UPDATE transport_requests SET status = 'PRICE_PROPOSED',
+        agreed_amount_minor = ?, currency = 'DZD', price_set_at = CURRENT_TIMESTAMP,
+        agreed_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+        .run(agreedAmountMinor, `${(agreedAmountMinor / 100).toFixed(2)} DZD`, requestId);
+      return this.findById(requestId);
+    }).immediate();
+  },
+
+  confirmProposedPrice(requestId, customerId) {
+    const request = db.prepare(`SELECT * FROM transport_requests WHERE id = ?`).get(requestId);
+    if (!request) throw Object.assign(new Error('Request not found'), { status: 404 });
+    if (request.customer_id !== customerId) throw Object.assign(new Error('Access denied'), { status: 403 });
+    if (request.status === 'ACCEPTED') return this.findById(requestId);
+    if (request.status !== 'PRICE_PROPOSED') {
+      throw Object.assign(new Error('There is no proposed price to confirm'), { status: 409 });
+    }
+    this.acceptWithCapacityUpdate(requestId, request.trip_id, request.agreed_amount_minor);
+    return this.findById(requestId);
+  },
+
   acceptWithCapacityUpdate(requestId, tripId, agreedAmountMinor) {
     // Use transaction to atomically:
     // 1. Get the request and verify capacity
@@ -507,7 +537,8 @@ const TransportRequestModel = {
       Payments.calculateSplit(agreedAmountMinor);
       // Get request
       const request = db.prepare(`
-        SELECT trip_id, status, requested_weight, requested_volume FROM transport_requests WHERE id = ?
+        SELECT trip_id, status, requested_weight, requested_volume, agreed_amount_minor
+        FROM transport_requests WHERE id = ?
       `).get(requestId);
 
       if (!request) {
@@ -523,10 +554,13 @@ const TransportRequestModel = {
         throw new Error('Trip not found');
       }
 
-      if (request.trip_id !== tripId || request.status !== 'PENDING' || trip.status !== 'PUBLISHED') {
-        const error = new Error('Only pending requests on published trips can be accepted');
+      if (request.trip_id !== tripId || !['PENDING', 'PRICE_PROPOSED'].includes(request.status) || trip.status !== 'PUBLISHED') {
+        const error = new Error('Only pending price-confirmed requests on published trips can be accepted');
         error.status = 409;
         throw error;
+      }
+      if (request.status === 'PRICE_PROPOSED' && request.agreed_amount_minor !== agreedAmountMinor) {
+        throw Object.assign(new Error('The confirmed amount does not match the proposed price'), { status: 409 });
       }
       if (!Number.isFinite(request.requested_weight) || request.requested_weight <= 0 ||
           (request.requested_volume !== null && (!Number.isFinite(request.requested_volume) || request.requested_volume <= 0))) {

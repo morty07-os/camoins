@@ -119,6 +119,7 @@ async function run() {
   });
   assert.equal(booking.status, 201);
   const accepted = await api('POST', `/requests/${booking.data.request.id}/accept`, driver, { agreed_amount_minor: 10000 });
+  await api('POST', `/requests/${booking.data.request.id}/confirm-price`, customer);
   assert.equal(accepted.status, 200);
 
   let response = await search();

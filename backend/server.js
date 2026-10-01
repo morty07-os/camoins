@@ -1902,8 +1902,8 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
     }
 
     try {
-      // Accept with capacity update (transaction)
-      TransportRequestModel.acceptWithCapacityUpdate(requestId, request.trip_id, agreedAmountMinor);
+      // Propose the price. Capacity is reserved only after the customer confirms it.
+      TransportRequestModel.proposePrice(requestId, request.trip_id, agreedAmountMinor);
 
       const updatedRequest = TransportRequestModel.findById(requestId);
       const updatedTrip = TripModel.findById(request.trip_id);
@@ -1913,8 +1913,8 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
 
       // Notify customer that request was accepted
       createNotification(request.customer_id,
-        'Request Accepted',
-        `Your transport request for ${trip.origin_name} to ${trip.destination_name} has been accepted.`,
+        'Price Proposed',
+        `The driver proposed a price for ${trip.origin_name} to ${trip.destination_name}. Please confirm it.`,
         NOTIFICATION_TYPES.REQUEST_ACCEPTED,
         requestId,
         conversation.id,
@@ -1924,7 +1924,7 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
 
       res.json({
         success: true,
-        message: 'Transport request accepted',
+        message: 'Price proposed; waiting for customer confirmation',
         request: updatedRequest,
         trip: updatedTrip,
         conversation: conversation,
@@ -1944,6 +1944,41 @@ app.post('/api/requests/:id/accept', authMiddleware, isDriverMiddleware, (req, r
     res.status(500).json({
       success: false,
       message: 'Internal server error'
+    });
+  }
+});
+
+app.post('/api/requests/:id/confirm-price', authMiddleware, (req, res) => {
+  try {
+    if (req.user.role !== 'CUSTOMER') {
+      return res.status(403).json({ success: false, message: 'Only customers can confirm a price' });
+    }
+    const requestId = Number(req.params.id);
+    const updatedRequest = TransportRequestModel.confirmProposedPrice(requestId, req.user.id);
+    const trip = TripModel.findById(updatedRequest.trip_id);
+    const conversation = ConversationModel.findOrCreateByRequestId(requestId);
+    const payment = Payments.findByRequestId(requestId);
+    createNotification(trip.driver_id,
+      'Price Confirmed',
+      `The customer confirmed the price for ${trip.origin_name} to ${trip.destination_name}.`,
+      NOTIFICATION_TYPES.REQUEST_ACCEPTED,
+      requestId,
+      conversation.id,
+      trip.id,
+      requestId
+    );
+    res.json({
+      success: true,
+      message: 'Price confirmed and transport accepted',
+      request: updatedRequest,
+      trip: TripModel.findById(updatedRequest.trip_id),
+      conversation,
+      payment
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.status ? error.message : 'Unable to confirm the proposed price'
     });
   }
 });

@@ -39,6 +39,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _isConnected = true;
   bool _confirming = false;
   bool _recordingCash = false;
+  bool _confirmingPrice = false;
 
   @override
   void initState() {
@@ -385,16 +386,24 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Widget _paymentCard(Conversation conversation, int? userId) {
-    if (conversation.paymentId == null || conversation.agreedAmountMinor == null) {
+    if (conversation.agreedAmountMinor == null) {
       return const SizedBox.shrink();
     }
+    final isProposal = conversation.requestStatus == 'PRICE_PROPOSED';
     final amount = (conversation.agreedAmountMinor! / 100).toStringAsFixed(2);
-    final fee = ((conversation.platformFeeMinor ?? 0) / 100).toStringAsFixed(2);
-    final net = ((conversation.driverNetMinor ?? 0) / 100).toStringAsFixed(2);
+    final proposedFee = (conversation.agreedAmountMinor! * 9 / 100).round();
+    final feeMinor = conversation.platformFeeMinor ?? proposedFee;
+    final netMinor = conversation.driverNetMinor ?? conversation.agreedAmountMinor! - feeMinor;
+    final fee = (feeMinor / 100).toStringAsFixed(2);
+    final net = (netMinor / 100).toStringAsFixed(2);
     final isPaid = conversation.paymentStatus == 'PAID';
     final canRecord = conversation.driverId == userId &&
         ref.read(authProvider).currentUser?.isDriver == true &&
         conversation.paymentStatus == 'PENDING_COLLECTION';
+    final canConfirmPrice = isProposal &&
+        conversation.customerId == userId &&
+        ref.read(authProvider).currentUser?.isCustomer == true &&
+        conversation.requestId != null;
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Padding(
@@ -402,9 +411,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('$amount ${conversation.currency}',
               style: Theme.of(context).textTheme.titleLarge),
-          const Text('Paiement en espèces'),
+          Text(isProposal ? 'Prix proposé par le chauffeur' : 'Paiement en espèces'),
           const SizedBox(height: 6),
-          Text(isPaid ? 'Espèces reçues' : 'À payer au chauffeur'),
+          Text(isProposal
+              ? 'Votre confirmation est requise avant la réservation.'
+              : isPaid
+                  ? 'Espèces reçues'
+                  : 'À payer au chauffeur'),
           if (ref.read(authProvider).currentUser?.isDriver == true) ...[
             const SizedBox(height: 6),
             Text('Commission Camoins (9 %) : $fee ${conversation.currency}'),
@@ -418,6 +431,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   : () => _markCashReceived(conversation.paymentId!),
               icon: const Icon(Icons.payments_outlined),
               label: Text(_recordingCash ? 'Enregistrement…' : 'Confirmer les espèces reçues'),
+            ),
+          ],
+          if (canConfirmPrice) ...[
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _confirmingPrice
+                  ? null
+                  : () => _confirmPrice(conversation.requestId!),
+              icon: const Icon(Icons.check_circle_outline),
+              label: Text(_confirmingPrice ? 'Confirmation…' : 'Accepter le prix'),
             ),
           ],
         ]),
@@ -442,6 +465,27 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
     } finally {
       if (mounted) setState(() => _recordingCash = false);
+    }
+  }
+
+  Future<void> _confirmPrice(int requestId) async {
+    setState(() => _confirmingPrice = true);
+    try {
+      await ApiService().confirmPrice(requestId);
+      if (!mounted) return;
+      ref.invalidate(conversationDetailsProvider(widget.conversationId));
+      ref.read(transportUpdatesProvider.notifier).state++;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Prix accepté, transport réservé')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _confirmingPrice = false);
     }
   }
 

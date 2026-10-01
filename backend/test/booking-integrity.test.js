@@ -42,7 +42,7 @@ async function run() {
   assert.equal(TripModel.findById(1).available_volume, 20);
   db.prepare('UPDATE transport_requests SET requested_volume = 5 WHERE id = ?').run(id);
   TransportRequestModel.acceptWithCapacityUpdate(id, 1, 10000);
-  assert.throws(() => TransportRequestModel.acceptWithCapacityUpdate(id, 1, 10000), /pending requests/);
+  assert.throws(() => TransportRequestModel.acceptWithCapacityUpdate(id, 1, 10000), /pending price-confirmed requests/);
   assert.equal(TripModel.findById(1).available_weight, 90);
   // Force a failure halfway through finishing; both records must roll back.
   db.exec(`CREATE TRIGGER fail_finish BEFORE UPDATE OF status ON trips
@@ -112,6 +112,7 @@ async function run() {
   const accepted = await request(cancelledTrip);
   const acceptance = await api('POST', `/requests/${accepted}/accept`, driver, { agreed_amount_minor: 10000 });
   assert.equal(acceptance.status, 200);
+  assert.equal((await api('POST', `/requests/${accepted}/confirm-price`, customer)).status, 200);
   const conversationId = acceptance.data.conversation.id;
   assert.equal((await api('POST', `/conversations/${conversationId}/messages`, customer, { message: 'Keep this history' })).status, 201);
   assert.equal((await api('POST', `/trips/${cancelledTrip}/cancel`, driver)).status, 200);
@@ -129,6 +130,7 @@ async function run() {
   const completedRequest = await request(completedTrip);
   const unanswered = await request(completedTrip);
   assert.equal((await api('POST', `/requests/${completedRequest}/accept`, driver, { agreed_amount_minor: 10000 })).status, 200);
+  assert.equal((await api('POST', `/requests/${completedRequest}/confirm-price`, customer)).status, 200);
   assert.equal((await api('POST', `/trips/${completedTrip}/start`, driver)).status, 200);
   assert.equal((await api('POST', `/requests/${unanswered}/accept`, driver, { agreed_amount_minor: 10000 })).status, 409);
   assert.equal((await api('POST', `/trips/${completedTrip}/complete`, driver)).status, 200);

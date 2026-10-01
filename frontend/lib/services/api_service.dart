@@ -1238,6 +1238,10 @@ class ApiService {
     await _completionApi('requests/$id/confirm', post: true);
   }
 
+  Future<void> confirmPrice(int requestId) async {
+    await _completionApi('requests/$requestId/confirm-price', post: true);
+  }
+
   Future<void> markCashReceived(int paymentId) async {
     await _completionApi('payments/$paymentId/cash-received', post: true);
   }
