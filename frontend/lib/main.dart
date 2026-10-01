@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'login_page.dart';
 import 'pages/register_page.dart';
 import 'pages/profile_page.dart';
@@ -29,6 +30,7 @@ import 'config/app_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('fr_FR');
   // Resolve the backend URL (runtime override / platform default) before the
   // first network or socket call.
   await AppConfig.load();

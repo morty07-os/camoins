@@ -145,6 +145,11 @@ async function run() {
     res.status === 200 && res.data.conversation.id === firstConversationId,
   );
   const conversationId = res.data.conversation.id;
+  res = await api('POST', `/requests/${requestId}/confirm-price`, customer);
+  report(
+    'customer confirms the proposed price',
+    res.status === 200 && res.data.request.status === 'ACCEPTED',
+  );
 
   res = await api('GET', `/conversations/${conversationId}/messages`, driver);
   report('conversation starts empty', res.status === 200 && res.data.messages.length === 0);
@@ -236,6 +241,8 @@ async function run() {
     'accepting second request keeps its conversation identity',
     res.status === 200 && res.data.conversation.id === secondConversationId,
   );
+  res = await api('POST', `/requests/${secondRequestId}/confirm-price`, customer);
+  report('customer confirms the second proposed price', res.status === 200);
 
   res = await api('GET', '/notifications', customer);
   const requestNotifications = res.data.notifications.filter(

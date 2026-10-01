@@ -71,6 +71,7 @@ class TransportRequest {
 
   static const Map<String, String> statusDisplayNames = {
     'PENDING': 'En attente',
+    'PRICE_PROPOSED': 'Prix à confirmer',
     'ACCEPTED': 'Acceptée',
     'AWAITING_CUSTOMER_CONFIRMATION': 'En attente de confirmation du client',
     'REJECTED': 'Refusée',
@@ -81,6 +82,7 @@ class TransportRequest {
   String get statusDisplayName => statusDisplayNames[status] ?? status;
 
   bool get isPending => status == 'PENDING';
+  bool get isPriceProposed => status == 'PRICE_PROPOSED';
   bool get isAccepted => status == 'ACCEPTED';
   bool get isRejected => status == 'REJECTED';
   bool get isCancelled => status == 'CANCELLED';

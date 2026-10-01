@@ -37,14 +37,14 @@ function finishTrip(tripId, user) {
     const events = requests.map(request => transition(request, user.id, false));
     db.prepare("UPDATE trips SET status = 'COMPLETED', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(tripId);
     // Preserve the existing closure of unanswered bookings; never confirm them.
-    for (const request of db.prepare("SELECT * FROM transport_requests WHERE trip_id = ? AND status = 'PENDING'").all(tripId)) {
+    for (const request of db.prepare("SELECT * FROM transport_requests WHERE trip_id = ? AND status IN ('PENDING', 'PRICE_PROPOSED')").all(tripId)) {
       const id = NotificationModel.create(request.customer_id, {
         title: 'Demande annulée', body: 'Le trajet est terminé sans acceptation de votre demande.',
         type: 'request_cancelled', related_id: request.id, request_id: request.id, trip_id: tripId,
       });
       events.push({ notification: NotificationModel.findById(id) });
     }
-    db.prepare("UPDATE transport_requests SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP WHERE trip_id = ? AND status = 'PENDING'").run(tripId);
+    db.prepare("UPDATE transport_requests SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP WHERE trip_id = ? AND status IN ('PENDING', 'PRICE_PROPOSED')").run(tripId);
     return events;
   }).immediate();
 }

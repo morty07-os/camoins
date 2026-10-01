@@ -116,7 +116,7 @@ function initializeDatabase() {
       pickup_location TEXT,
       delivery_location TEXT,
       agreed_price TEXT,
-      status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'COMPLETED')),
+      status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'PRICE_PROPOSED', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'COMPLETED')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
@@ -192,6 +192,7 @@ function initializeDatabase() {
   `);
 
   migrateCompletion();
+  migratePriceProposal();
   migratePaymentsAndAdmin();
 
   // Guards apply to existing databases too. Submitted ratings are immutable.
@@ -229,6 +230,34 @@ function initializeDatabase() {
   initializeIndexes();
 
   console.log('✓ Database tables initialized');
+}
+
+function migratePriceProposal() {
+  const schema = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'transport_requests'").get().sql;
+  if (schema.includes('PRICE_PROPOSED')) return;
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.transaction(() => {
+      const objects = db.prepare("SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL AND (type = 'trigger' OR (type = 'index' AND tbl_name = 'transport_requests'))").all();
+      for (const object of objects.filter(object => object.type === 'trigger')) {
+        db.exec(`DROP TRIGGER "${object.name.replace(/"/g, '""')}"`);
+      }
+      db.exec(schema
+        .replace(/CREATE TABLE ["`]?transport_requests["`]?/i, 'CREATE TABLE transport_requests_price_proposal')
+        .replace("'PENDING', 'ACCEPTED',", "'PENDING', 'PRICE_PROPOSED', 'ACCEPTED',"));
+      db.exec(`
+        INSERT INTO transport_requests_price_proposal SELECT * FROM transport_requests;
+        DROP TABLE transport_requests;
+        ALTER TABLE transport_requests_price_proposal RENAME TO transport_requests;
+      `);
+      for (const object of objects) db.exec(object.sql);
+      if (db.pragma('foreign_key_check').length) {
+        throw new Error('Price proposal migration foreign key check failed');
+      }
+    }).immediate();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
 }
 
 function migratePaymentsAndAdmin() {

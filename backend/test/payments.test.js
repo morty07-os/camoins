@@ -36,7 +36,13 @@ try {
   });
   assert.throws(() => Payments.calculateSplit(1.5), /positive amount/);
 
-  TransportRequestModel.acceptWithCapacityUpdate(1, 1, 12345);
+  const proposed = TransportRequestModel.proposePrice(1, 1, 12345);
+  assert.equal(proposed.status, 'PRICE_PROPOSED');
+  assert.equal(Payments.findByRequestId(1), undefined);
+  assert.equal(db.prepare('SELECT available_weight FROM trips WHERE id = 1').get().available_weight, 1000);
+  assert.throws(() => TransportRequestModel.confirmProposedPrice(1, 4), /Access denied/);
+  const accepted = TransportRequestModel.confirmProposedPrice(1, 2);
+  assert.equal(accepted.status, 'ACCEPTED');
   const payment = Payments.findByRequestId(1);
   assert.equal(payment.amount_minor, 12345);
   assert.equal(payment.platform_fee_minor, 1111);
