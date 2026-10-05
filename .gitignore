@@ -152,3 +152,8 @@ dist/
 out/
 .next/
 .nuxt/
+
+# Local invoice spreadsheets
+/FACTURE PROFORMAT MAPI TEK.xlsx
+/PROFORMAT 08-2026 MAPI TEK SPA 5 (1).xlsx
+~$*.xlsx
