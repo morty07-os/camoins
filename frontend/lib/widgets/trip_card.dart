@@ -49,10 +49,9 @@ class TripCard extends StatelessWidget {
                       children: [
                         Text(
                           trip.routeLabel,
-                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
                             color: AppColors.text,
                           ),
                         ),
@@ -74,7 +73,10 @@ class TripCard extends StatelessWidget {
               const Divider(),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     _CapacityItem(
                       icon: Icons.scale_rounded,
@@ -89,7 +91,6 @@ class TripCard extends StatelessWidget {
                         value: '${_formatVolume(trip.availableVolume!)} m³',
                       ),
                     ],
-                    const Spacer(),
                     StatusBadge(status: trip.status),
                     const SizedBox(width: 4),
                     IconButton(

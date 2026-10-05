@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../pages/driver_navigation.dart';
+import '../pages/driver_home_page.dart';
 import '../pages/driver_trucks_page.dart';
 import '../pages/profile_page.dart';
 
@@ -50,7 +50,7 @@ final _appRouter = GoRouter(
     // Driver routes (protected)
     GoRoute(
       path: '/driver-home',
-      builder: (context, state) => const DriverNavigation(),
+      builder: (context, state) => const DriverHomePage(),
     ),
     GoRoute(
       path: '/driver-trucks',

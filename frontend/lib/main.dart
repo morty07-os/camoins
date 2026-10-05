@@ -9,6 +9,10 @@ import 'pages/customer_home_page.dart';
 import 'pages/customer_history_page.dart';
 import 'pages/customer_navigation.dart';
 import 'pages/driver_navigation.dart';
+import 'pages/driver_home_page.dart';
+import 'pages/driver_trucks_page.dart';
+import 'pages/driver_return_trips_page.dart';
+import 'pages/driver_history_page.dart';
 import 'pages/add_truck_page.dart';
 import 'pages/edit_truck_page.dart';
 import 'pages/truck_details_page.dart';
@@ -111,9 +115,7 @@ class BackhaulApp extends ConsumerWidget {
         }
 
         // A driver must not access customer screens
-        if (isAuthenticated &&
-            user?.isDriver == true &&
-            isCustomerRoute) {
+        if (isAuthenticated && user?.isDriver == true && isCustomerRoute) {
           return '/driver-home';
         }
 
@@ -131,22 +133,6 @@ class BackhaulApp extends ConsumerWidget {
         GoRoute(
           path: '/admin',
           builder: (context, state) => const AdminDashboardPage(),
-        ),
-        GoRoute(
-          path: '/driver-home',
-          builder: (context, state) => const DriverNavigation(),
-        ),
-        GoRoute(
-          path: '/driver-trucks',
-          builder: (context, state) => const DriverNavigation(),
-        ),
-        GoRoute(
-          path: '/driver-profile',
-          builder: (context, state) => const DriverNavigation(),
-        ),
-        GoRoute(
-          path: '/driver-trips',
-          builder: (context, state) => const DriverNavigation(),
         ),
         GoRoute(
           path: '/publish-return-trip',
@@ -185,6 +171,42 @@ class BackhaulApp extends ConsumerWidget {
           },
         ),
         StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) =>
+              DriverNavigation(navigationShell: navigationShell),
+          branches: [
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/driver-home',
+                  builder: (context, state) => const DriverHomePage())
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/driver-trucks',
+                  builder: (context, state) => const DriverTrucksPage())
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/driver-trips',
+                  builder: (context, state) => const DriverReturnTripsPage())
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/driver-history',
+                  builder: (context, state) => const DriverHistoryPage())
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/driver-messages',
+                  builder: (context, state) => const MessagesPage())
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/driver-profile',
+                  builder: (context, state) => const ProfilePage())
+            ]),
+          ],
+        ),
+        StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) => CustomerNavigation(
             navigationShell: navigationShell,
           ),
@@ -201,8 +223,7 @@ class BackhaulApp extends ConsumerWidget {
               routes: [
                 GoRoute(
                   path: '/customer-trips',
-                  builder: (context, state) =>
-                      const TripSearchResultsPage(),
+                  builder: (context, state) => const TripSearchResultsPage(),
                 ),
               ],
             ),
@@ -231,10 +252,6 @@ class BackhaulApp extends ConsumerWidget {
               ],
             ),
           ],
-        ),
-        GoRoute(
-          path: '/driver-history',
-          builder: (context, state) => const DriverNavigation(),
         ),
         GoRoute(
           path: '/search-trips',
@@ -279,10 +296,6 @@ class BackhaulApp extends ConsumerWidget {
         GoRoute(
           path: '/driver-requests',
           builder: (context, state) => const DriverRequestsPage(),
-        ),
-        GoRoute(
-          path: '/driver-messages',
-          builder: (context, state) => const DriverNavigation(),
         ),
         GoRoute(
           path: '/messages',
