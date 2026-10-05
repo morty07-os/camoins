@@ -1,3 +1,4 @@
+import 'package:backhaul_frontend/widgets/curved_transport_bar.dart';
 import 'package:backhaul_frontend/main.dart';
 import 'package:backhaul_frontend/models/conversation.dart';
 import 'package:backhaul_frontend/models/notification.dart';
@@ -85,14 +86,16 @@ void main() {
           ),
           apiServiceProvider.overrideWith((ref) => _FakeApiService()),
         ],
-        child: const BackhaulApp(),
+        child: const MediaQuery(
+            data: MediaQueryData(disableAnimations: true),
+            child: BackhaulApp()),
       ),
     );
     await tester.pumpAndSettle();
   }
 
-  NavigationBar navigationBar(WidgetTester tester) =>
-      tester.widget<NavigationBar>(find.byType(NavigationBar));
+  CurvedTransportBar navigationBar(WidgetTester tester) =>
+      tester.widget<CurvedTransportBar>(find.byType(CurvedTransportBar));
 
   testWidgets('customer can switch all five tabs with the correct selection',
       (tester) async {
@@ -129,6 +132,16 @@ void main() {
 
     expect(find.text('1250'), findsOneWidget);
     expect(navigationBar(tester).selectedIndex, 1);
+  });
+
+  testWidgets('customer mobile dashboard visual', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await pumpCustomerApp(tester);
+    await expectLater(find.byType(MaterialApp),
+        matchesGoldenFile('goldens/customer_dashboard.png'));
   });
 
   testWidgets('notifications use a pushed route with working back navigation',

@@ -3,24 +3,24 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  static const Color primary = Color(0xFF123C4A);
-  static const Color primaryDark = Color(0xFF082A35);
-  static const Color secondary = Color(0xFF176B74);
-  static const Color accent = Color(0xFFF4B942);
+  static const Color primary = Color(0xFF142D4E);
+  static const Color primaryDark = Color(0xFF10233C);
+  static const Color secondary = Color(0xFF31577B);
+  static const Color accent = Color(0xFFF58220);
   static const Color warning = Color(0xFFB45309);
   static const Color success = Color(0xFF15805D);
   static const Color error = Color(0xFFDC2626);
-  static const Color background = Color(0xFFF5F8F7);
+  static const Color background = Color(0xFFF5F7FA);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color text = Color(0xFF142D34);
-  static const Color textSecondary = Color(0xFF587078);
+  static const Color text = Color(0xFF142D4E);
+  static const Color textSecondary = Color(0xFF52647B);
   static const Color textTertiary = Color(0xFF94A3B8);
-  static const Color border = Color(0xFFDDE7E5);
-  static const Color divider = Color(0xFFE6EEEC);
+  static const Color border = Color(0xFFE1E7EF);
+  static const Color divider = Color(0xFFE8EDF3);
 
-  static const Color primarySoft = Color(0xFFE2EEEC);
-  static const Color secondarySoft = Color(0xFFDDF0EF);
-  static const Color accentSoft = Color(0xFFFFF2CE);
+  static const Color primarySoft = Color(0xFFE8EEF6);
+  static const Color secondarySoft = Color(0xFFEAF0F7);
+  static const Color accentSoft = Color(0xFFFFF0E3);
   static const Color successSoft = Color(0xFFE5F5EC);
   static const Color errorSoft = Color(0xFFFCEBEB);
 }
@@ -69,6 +69,7 @@ class AppTheme {
           .apply(bodyColor: AppColors.text, displayColor: AppColors.text)
           .copyWith(
             headlineMedium: const TextStyle(
+              fontFamily: 'Roboto',
               fontSize: 28,
               height: 1.15,
               fontWeight: FontWeight.w800,
@@ -76,22 +77,26 @@ class AppTheme {
               color: AppColors.text,
             ),
             titleLarge: const TextStyle(
+              fontFamily: 'Roboto',
               fontSize: 20,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.2,
               color: AppColors.text,
             ),
             bodyLarge: const TextStyle(
+              fontFamily: 'Roboto',
               fontSize: 16,
               height: 1.5,
               color: AppColors.text,
             ),
             bodyMedium: const TextStyle(
+              fontFamily: 'Roboto',
               fontSize: 14,
               height: 1.45,
               color: AppColors.textSecondary,
             ),
-          ),
+          )
+          .apply(fontFamily: 'Roboto'),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -119,9 +124,12 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
-        floatingLabelStyle: TextStyle(color: AppColors.primary),
+        labelStyle: const TextStyle(
+            fontFamily: 'Roboto', color: AppColors.textSecondary),
+        floatingLabelStyle:
+            TextStyle(fontFamily: 'Roboto', color: AppColors.primary),
         hintStyle: TextStyle(
+          fontFamily: 'Roboto',
           color: AppColors.textSecondary.withValues(alpha: 0.7),
         ),
         prefixIconColor: AppColors.textSecondary,
@@ -151,6 +159,7 @@ class AppTheme {
           borderSide: const BorderSide(color: AppColors.error, width: 1.6),
         ),
         errorStyle: const TextStyle(
+          fontFamily: 'Roboto',
           color: AppColors.error,
           fontWeight: FontWeight.w600,
         ),
@@ -163,6 +172,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           elevation: 1,
           textStyle: const TextStyle(
+            fontFamily: 'Roboto',
             fontSize: 15,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.2,
@@ -179,6 +189,7 @@ class AppTheme {
           minimumSize: const Size(0, buttonHeight),
           elevation: 0,
           textStyle: const TextStyle(
+            fontFamily: 'Roboto',
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
@@ -194,6 +205,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           side: const BorderSide(color: AppColors.border, width: 1.2),
           textStyle: const TextStyle(
+            fontFamily: 'Roboto',
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -204,8 +216,9 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.accent,
+          foregroundColor: AppColors.primary,
           textStyle: const TextStyle(
+            fontFamily: 'Roboto',
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -227,12 +240,14 @@ class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const TextStyle(
+              fontFamily: 'Roboto',
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: AppColors.primary,
             );
           }
           return const TextStyle(
+            fontFamily: 'Roboto',
             fontSize: 11,
             fontWeight: FontWeight.w500,
             color: AppColors.textSecondary,
@@ -245,7 +260,8 @@ class AppTheme {
         unselectedItemColor: AppColors.textSecondary,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-        selectedLabelStyle: TextStyle(fontWeight: FontWeight.w700),
+        selectedLabelStyle:
+            TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.w700),
       ),
       dividerTheme: const DividerThemeData(
         color: AppColors.border,
@@ -256,6 +272,7 @@ class AppTheme {
         backgroundColor: AppColors.surface,
         selectedColor: AppColors.primarySoft,
         labelStyle: const TextStyle(
+          fontFamily: 'Roboto',
           color: AppColors.text,
           fontWeight: FontWeight.w600,
         ),
@@ -267,17 +284,19 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.text,
-        contentTextStyle: const TextStyle(color: Colors.white),
+        contentTextStyle:
+            const TextStyle(fontFamily: 'Roboto', color: Colors.white),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.primaryDark,
         elevation: 2,
         iconSize: 24,
         extendedTextStyle: const TextStyle(
+          fontFamily: 'Roboto',
           fontSize: 15,
           fontWeight: FontWeight.w700,
         ),
@@ -296,11 +315,13 @@ class AppTheme {
           borderRadius: BorderRadius.circular(20),
         ),
         titleTextStyle: const TextStyle(
+          fontFamily: 'Roboto',
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: AppColors.text,
         ),
         contentTextStyle: const TextStyle(
+          fontFamily: 'Roboto',
           fontSize: 15,
           color: AppColors.textSecondary,
           height: 1.4,
@@ -309,11 +330,13 @@ class AppTheme {
       listTileTheme: const ListTileThemeData(
         iconColor: AppColors.secondary,
         titleTextStyle: TextStyle(
+          fontFamily: 'Roboto',
           fontSize: 15,
           fontWeight: FontWeight.w600,
           color: AppColors.text,
         ),
         subtitleTextStyle: TextStyle(
+          fontFamily: 'Roboto',
           fontSize: 13,
           color: AppColors.textSecondary,
         ),

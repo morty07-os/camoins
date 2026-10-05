@@ -724,8 +724,8 @@ class _SearchResultCard extends StatelessWidget {
                           Text(
                             result.trip.originName,
                             style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
                               color: AppColors.text,
                             ),
                           ),
@@ -756,8 +756,8 @@ class _SearchResultCard extends StatelessWidget {
                             result.trip.destinationName,
                             textAlign: TextAlign.right,
                             style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
                               color: AppColors.text,
                             ),
                           ),
