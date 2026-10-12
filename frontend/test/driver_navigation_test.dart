@@ -1,3 +1,4 @@
+import 'package:backhaul_frontend/widgets/dashboard_activity.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:backhaul_frontend/pages/driver_home_page.dart';
@@ -45,6 +46,8 @@ void main() {
       ProviderScope(
         overrides: [
           authProvider.overrideWith((ref) => FakeAuthNotifier()),
+          dashboardRequestsProvider.overrideWith((ref) async => []),
+          dashboardTripsProvider.overrideWith((ref) async => []),
         ],
         child: const MediaQuery(
             data: MediaQueryData(disableAnimations: true),
@@ -59,16 +62,22 @@ void main() {
 
     expect(find.text('Tableau de bord'), findsWidgets);
     expect(find.textContaining('Test Driver'), findsOneWidget);
-    expect(find.text('0555123456'), findsOneWidget);
-    expect(find.text('Déconnexion'), findsOneWidget);
-    expect(find.text('Camions'), findsOneWidget);
+    expect(find.text('Proposer un trajet'), findsOneWidget);
+    expect(find.text('0 demandes en attente'), findsOneWidget);
+    expect(
+        tester
+            .widget<CurvedTransportBar>(find.byType(CurvedTransportBar))
+            .destinations
+            .length,
+        5);
     expect(find.text('Profil'), findsOneWidget);
   });
 
   testWidgets('Driver can navigate to My Trucks tab', (tester) async {
     await pumpAuthenticatedApp(tester);
 
-    await tester.tap(find.text('Camions'));
+    await tester.ensureVisible(find.text('Gérer mes camions'));
+    await tester.tap(find.text('Gérer mes camions'));
     await tester.pumpAndSettle();
 
     expect(find.text('Ajouter un camion'), findsOneWidget);
@@ -105,11 +114,11 @@ void main() {
     await tester.pumpAndSettle();
     final offset = tester.state<ScrollableState>(scroll).position.pixels;
     for (final entry in <String, int>{
-      '/driver-trucks': 1,
-      '/driver-trips': 2,
-      '/driver-history': 3,
-      '/driver-messages': 4,
-      '/driver-profile': 5,
+      '/driver-trucks': 0,
+      '/driver-trips': 1,
+      '/driver-history': 2,
+      '/driver-messages': 3,
+      '/driver-profile': 4,
     }.entries) {
       router.go(entry.key);
       await tester.pumpAndSettle();

@@ -1,3 +1,4 @@
+import 'package:backhaul_frontend/widgets/dashboard_activity.dart';
 import 'package:backhaul_frontend/widgets/curved_transport_bar.dart';
 import 'package:backhaul_frontend/main.dart';
 import 'package:backhaul_frontend/models/conversation.dart';
@@ -80,6 +81,7 @@ void main() {
       ProviderScope(
         overrides: [
           authProvider.overrideWith((ref) => _CustomerAuthNotifier()),
+          dashboardRequestsProvider.overrideWith((ref) async => []),
           unreadNotificationCountProvider.overrideWith((ref) => 0),
           conversationsProvider.overrideWith(
             (ref) async => <Conversation>[],

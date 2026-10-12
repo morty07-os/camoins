@@ -9,18 +9,18 @@ class DriverNavigation extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
         body: navigationShell,
         bottomNavigationBar: CurvedTransportBar(
-          selectedIndex: navigationShell.currentIndex,
-          onDestinationSelected: (index) => navigationShell.goBranch(index),
+          selectedIndex: navigationShell.currentIndex == 1
+              ? 0
+              : (navigationShell.currentIndex > 1
+                  ? navigationShell.currentIndex - 1
+                  : 0),
+          onDestinationSelected: (index) =>
+              navigationShell.goBranch(index == 0 ? 0 : index + 1),
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home_rounded),
               label: 'Accueil',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.local_shipping_outlined),
-              selectedIcon: Icon(Icons.local_shipping_rounded),
-              label: 'Camions',
             ),
             NavigationDestination(
               icon: Icon(Icons.route_outlined),
