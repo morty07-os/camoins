@@ -1,5 +1,10 @@
 # Security review — 12 October 2026
 
+Update — 13 October 2026: stability verification passed and sensitive history was
+removed from local Git refs and both affected branches on `origin`. GitHub's old
+PR merge ref still needs Support cleanup. See [history cleanup report](SECURITY_HISTORY_CLEANUP.md)
+for verification, preserved recovery data, and the remaining action.
+
 ## Remediation update — 12 October 2026
 
 The findings below are the original audit record. The application fixes have now
@@ -9,7 +14,7 @@ The user confirmed that there is no hosted deployment.
 | Finding | Current status |
 | --- | --- |
 | Committed signing secret | Rotated locally to a random 48-byte key. Removed `.env` from the Git index while preserving the local file; added a placeholder example. Missing, short, and known fallback keys now stop backend startup. |
-| Tracked database | Removed the database from the Git index, preserved local data, and ignored SQLite sidecar files. Historical commits are unchanged; see remaining limitation below. |
+| Tracked database | Removed the database from the Git index, preserved local data, and ignored SQLite sidecar files. Sensitive history was subsequently cleaned; see the 13 October report. |
 | Public personal data | Removed email and vehicle registration fields from public search, adjusted Flutter parsing, and added a search rate limit. |
 | Socket expiry | Idle sockets disconnect at token expiry; every incoming socket event also checks authentication. Revoked tokens cannot reconnect. |
 | Chat resource limits | Shared per-user message quotas across both transports; 4,000-code-unit messages; bounded pagination; REST and socket event limits. |
@@ -38,12 +43,10 @@ Restart the existing Flutter run session to load the dependency/authentication
 changes, then sign in again. The backend process was restarted and its health
 response was verified with the new no-store and nosniff headers.
 
-Remaining limitation: removing files from the Git index does not erase the old
-secret or database from previous commits or copies already shared. The current key
-is rotated, but history cleanup would rewrite repository history and has not been
-performed. Local history includes 34 commits touching these files and two configured
-remotes; remote repositories were not modified. Do not publish the old history
-without addressing that data exposure.
+Remaining limitation (updated 13 October): affected local and remote branch history
+has been cleaned, but GitHub's old PR merge ref and any external copies are outside
+that cleanup. The current key is rotated. See the linked history report for the
+GitHub Support request and private recovery backup precautions.
 Native Windows plugin setup also reported that Developer Mode/symlink support is
 required for packaging; the plugin downloaded and Dart tests compiled successfully.
 Breached-password screening was an optional audit recommendation and was not added.
