@@ -1,3 +1,4 @@
+import 'wilaya_field.dart';
 import 'package:flutter/material.dart';
 import '../constants/algerian_wilayas.dart';
 
@@ -75,29 +76,19 @@ class LocationFieldState extends State<LocationField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButtonFormField<String>(
+        WilayaField(
           key: ValueKey('${widget.label}-$selectedWilaya'),
           initialValue: selectedWilaya,
-          isExpanded: true,
           decoration: InputDecoration(
             labelText: widget.label,
             hintText: 'Choisir une wilaya',
             prefixIcon: Icon(widget.icon),
           ),
-          items: algerianWilayas
-              .map(
-                (wilaya) => DropdownMenuItem(
-                  value: wilaya,
-                  child: Text(wilaya, overflow: TextOverflow.ellipsis),
-                ),
-              )
-              .toList(),
           onChanged: (value) {
             setState(() => widget.controller.text = value ?? '');
           },
-          validator: (value) => value == null
-              ? 'Veuillez choisir une wilaya'
-              : null,
+          validator: (value) =>
+              value == null ? 'Veuillez choisir une wilaya' : null,
         ),
         TextButton.icon(
           onPressed: () {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:backhaul_frontend/widgets/wilaya_field.dart';
 
 import 'package:backhaul_frontend/pages/trip_search_results_page.dart';
 import 'package:backhaul_frontend/services/api_service.dart';
@@ -14,10 +15,10 @@ Future<void> selectWilaya(
   String label,
   String wilaya,
 ) async {
-  final field = tester.widget<DropdownButtonFormField<String>>(
-    find.widgetWithText(DropdownButtonFormField<String>, label),
+  final field = tester.widget<WilayaField>(
+    find.widgetWithText(WilayaField, label),
   );
-  field.onChanged!(wilaya);
+  field.onChanged(wilaya);
   await tester.pump();
 }
 
@@ -141,7 +142,8 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.enterText(find.widgetWithText(TextField, 'Poids min. (kg)'), '1000,5');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Poids min. (kg)'), '1000,5');
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
 
@@ -191,8 +193,10 @@ void main() {
 
     await tester.tap(find.text('Réinitialiser').first);
     await tester.pump();
-    expect(requests.last.queryParameters.containsKey('destination_name'), isFalse);
-    expect(requests.last.queryParameters.containsKey('required_weight'), isFalse);
+    expect(
+        requests.last.queryParameters.containsKey('destination_name'), isFalse);
+    expect(
+        requests.last.queryParameters.containsKey('required_weight'), isFalse);
     expect(requests.last.queryParameters['page'], '1');
   });
 

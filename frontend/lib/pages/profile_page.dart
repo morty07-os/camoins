@@ -1,3 +1,4 @@
+import '../widgets/wilaya_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -40,9 +41,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _phoneController = TextEditingController(text: user?.profile.phone ?? '');
     _cityController = TextEditingController(text: user?.profile.city ?? '');
     final currentWilaya = user?.profile.wilaya;
-    _selectedWilaya = algerianWilayas.contains(currentWilaya)
-        ? currentWilaya
-        : null;
+    _selectedWilaya =
+        algerianWilayas.contains(currentWilaya) ? currentWilaya : null;
   }
 
   @override
@@ -96,9 +96,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _phoneController.text = user?.profile.phone ?? '';
       _cityController.text = user?.profile.city ?? '';
       final currentWilaya = user?.profile.wilaya;
-      _selectedWilaya = algerianWilayas.contains(currentWilaya)
-          ? currentWilaya
-          : null;
+      _selectedWilaya =
+          algerianWilayas.contains(currentWilaya) ? currentWilaya : null;
       _isEditing = false;
     });
   }
@@ -150,9 +149,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             constraints: BoxConstraints(
               maxWidth: isDesktop ? 520 : double.infinity,
             ),
-            child: _isEditing
-                ? _buildEditForm(user)
-                : _buildInfoDisplay(user),
+            child: _isEditing ? _buildEditForm(user) : _buildInfoDisplay(user),
           ),
         ),
       ),
@@ -221,7 +218,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             child: Column(
               children: [
                 Text('${profile.rating.toStringAsFixed(1)} ★',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w700)),
                 Text('${profile.ratingCount} évaluations'),
               ],
             ),
@@ -349,23 +347,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
+          WilayaField(
             key: ValueKey(_selectedWilaya),
             initialValue: _selectedWilaya,
-            isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Wilaya',
               hintText: 'Choisir une wilaya',
               prefixIcon: Icon(Icons.map_outlined),
             ),
-            items: algerianWilayas
-                .map(
-                  (wilaya) => DropdownMenuItem(
-                    value: wilaya,
-                    child: Text(wilaya, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList(),
             onChanged: (value) => setState(() => _selectedWilaya = value),
           ),
           const SizedBox(height: 28),

@@ -1,9 +1,9 @@
+import '../widgets/wilaya_field.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../constants/algerian_wilayas.dart';
 import '../models/search_result.dart';
 import '../models/truck.dart';
 import '../providers/notification_provider.dart' show apiServiceProvider;
@@ -21,8 +21,7 @@ class TripSearchResultsPage extends ConsumerStatefulWidget {
       _TripSearchResultsPageState();
 }
 
-class _TripSearchResultsPageState
-    extends ConsumerState<TripSearchResultsPage> {
+class _TripSearchResultsPageState extends ConsumerState<TripSearchResultsPage> {
   static const _pageSize = 20;
   static const _debounceDuration = Duration(milliseconds: 350);
 
@@ -316,46 +315,28 @@ class _TripSearchResultsPageState
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
+                child: WilayaField(
                   key: ValueKey('origin-$_originWilaya'),
                   initialValue: _originWilaya,
-                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Départ',
                     hintText: 'Choisir une wilaya',
                     prefixIcon: Icon(Icons.trip_origin_rounded),
                   ),
-                  items: algerianWilayas
-                      .map(
-                        (wilaya) => DropdownMenuItem(
-                          value: wilaya,
-                          child: Text(wilaya, overflow: TextOverflow.ellipsis),
-                        ),
-                      )
-                      .toList(),
                   onChanged: (value) =>
                       _setWilayaFilter(isOrigin: true, value: value),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: DropdownButtonFormField<String>(
+                child: WilayaField(
                   key: ValueKey('destination-$_destinationWilaya'),
                   initialValue: _destinationWilaya,
-                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Destination',
                     hintText: 'Choisir une wilaya',
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
-                  items: algerianWilayas
-                      .map(
-                        (wilaya) => DropdownMenuItem(
-                          value: wilaya,
-                          child: Text(wilaya, overflow: TextOverflow.ellipsis),
-                        ),
-                      )
-                      .toList(),
                   onChanged: (value) =>
                       _setWilayaFilter(isOrigin: false, value: value),
                 ),
@@ -783,8 +764,7 @@ class _SearchResultCard extends StatelessWidget {
                     child: _DetailItem(
                       icon: Icons.calendar_today_rounded,
                       label: 'Date',
-                      value:
-                          _formatDateShort(result.trip.departureDate),
+                      value: _formatDateShort(result.trip.departureDate),
                     ),
                   ),
                   const SizedBox(width: 8),
