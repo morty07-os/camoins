@@ -2,8 +2,8 @@ const { UserModel } = require('../models');
 
 async function main() {
   const [email, password, fullName = 'Camoins Admin'] = process.argv.slice(2);
-  if (!email || !password || password.length < 8) {
-    console.error('Usage: npm run create-admin -- <email> <password-min-8-chars> [full-name]');
+  if (!email || !password || password.length < 12 || Buffer.byteLength(password, 'utf8') > 72) {
+    console.error('Usage: npm run create-admin -- <email> <password-min-12-chars-max-72-bytes> [full-name]');
     process.exitCode = 1;
     return;
   }

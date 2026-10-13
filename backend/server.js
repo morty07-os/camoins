@@ -8,7 +8,8 @@ const db = require('./database');
 const Completion = require('./completion');
 const Payments = require('./payments');
 const { UserModel, ProfileModel, TruckModel, TripModel, CargaisonModel, TransportRequestModel, ConversationModel, MessageModel, NotificationModel, RatingModel } = require('./models');
-const { generateToken, authMiddleware, verifyToken } = require('./auth');
+const { generateToken, authMiddleware, verifyToken, revokeToken, tokenFingerprint } = require('./auth');
+const { consumeQuota, validateMessage, pagination, chatReadLimiter } = require('./security');
 
 const localFrontendOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 const configuredFrontendOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '')
@@ -37,14 +38,34 @@ const corsOptions = {
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: corsOptions
+  cors: corsOptions,
+  maxHttpBufferSize: 32 * 1024,
+  allowRequest: (req, callback) => {
+    const secure = req.socket.encrypted || (process.env.TRUST_PROXY === 'true' && req.headers['x-forwarded-proto'] === 'https');
+    callback(null, isAllowedOrigin(req.headers.origin) && (process.env.NODE_ENV !== 'production' || !!secure));
+  }
 });
 const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Cache-Control', 'no-store');
+  if (process.env.NODE_ENV === 'production') {
+    if (!req.secure && req.path !== '/api/health') {
+      return res.status(400).json({ success: false, message: 'HTTPS is required' });
+    }
+    if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+  }
+  next();
+});
 app.use(cors(corsOptions));
 app.use(express.json());
+
+const searchRateLimiter = rateLimit({ windowMs: 60000, limit: 60, standardHeaders: true, legacyHeaders: false });
 
 const authRateLimitResponse = {
   success: false,
@@ -184,7 +205,7 @@ app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
     const { email, password, full_name, phone, role } = req.body;
 
     // Validate required fields
-    if (!email || !password || !full_name || !role) {
+    if (typeof email !== 'string' || typeof password !== 'string' || typeof full_name !== 'string' || !email || !password || !full_name.trim() || !role) {
       return res.status(400).json({
         success: false,
         message: 'Email, password, full name, and role are required'
@@ -201,10 +222,10 @@ app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
     }
 
     // Validate password length
-    if (password.length < 6) {
+    if (password.length < 12 || Buffer.byteLength(password, 'utf8') > 72) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters'
+        message: 'Password must be at least 12 characters and at most 72 UTF-8 bytes'
       });
     }
 
@@ -271,7 +292,7 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
     const { email, password } = req.body;
 
     // Validate required fields
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password || Buffer.byteLength(password, 'utf8') > 72) {
       return res.status(400).json({
         success: false,
         message: 'Email and password are required'
@@ -316,6 +337,12 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
       message: 'Internal server error'
     });
   }
+});
+
+app.post('/api/auth/logout', authMiddleware, (req, res) => {
+  revokeToken(req.authToken, req.authExpiresAt);
+  io.in(`session-${tokenFingerprint(req.authToken)}`).disconnectSockets(true);
+  res.json({ success: true });
 });
 
 // Get current user endpoint (protected)
@@ -1484,7 +1511,7 @@ function isIsoCalendarDate(value) {
 }
 
 // Search available trips (customer search)
-app.get('/api/search/trips', async (req, res) => {
+app.get('/api/search/trips', searchRateLimiter, async (req, res) => {
   try {
     const {
       origin_name,
@@ -1567,9 +1594,9 @@ app.get('/api/search/trips', async (req, res) => {
     `;
     const total = db.prepare(`SELECT COUNT(*) AS count ${fromAndWhere}`).get(...parameters).count;
     const trips = db.prepare(`
-      SELECT t.*, u.email, p.full_name, p.rating, p.rating_count,
+      SELECT t.*, p.full_name, p.rating, p.rating_count,
              tr.truck_type, tr.brand, tr.model, tr.max_weight, tr.max_volume,
-             tr.registration_number, tr.image_url,
+             tr.image_url,
              tr.created_at AS truck_created_at, tr.updated_at AS truck_updated_at
       ${fromAndWhere}
       ORDER BY t.departure_date ASC, t.created_at DESC, t.id DESC
@@ -1585,7 +1612,6 @@ app.get('/api/search/trips', async (req, res) => {
         model: trip.model,
         max_weight: trip.max_weight,
         max_volume: trip.max_volume,
-        registration_number: trip.registration_number,
         image_url: trip.image_url,
         created_at: trip.truck_created_at,
         updated_at: trip.truck_updated_at,
@@ -1612,7 +1638,6 @@ app.get('/api/search/trips', async (req, res) => {
         },
         driver: {
           id: trip.driver_id,
-          email: trip.email,
           full_name: trip.full_name,
           rating: trip.rating,
           rating_count: trip.rating_count,
@@ -2326,7 +2351,7 @@ app.post('/api/conversations/find-or-create', authMiddleware, (req, res) => {
 });
 
 // GET /api/conversations - Get all conversations for current user
-app.get('/api/conversations', authMiddleware, (req, res) => {
+app.get('/api/conversations', authMiddleware, chatReadLimiter, (req, res) => {
   try {
     const conversations = ConversationModel.findByUserId(req.user.id);
 
@@ -2356,11 +2381,12 @@ app.get('/api/conversations', authMiddleware, (req, res) => {
 });
 
 // GET /api/conversations/:id/messages - Get messages for a conversation
-app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
+app.get('/api/conversations/:id/messages', authMiddleware, chatReadLimiter, (req, res) => {
   try {
     const conversationId = parseInt(req.params.id);
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
+    const page = pagination(req.query);
+    if (!page) return res.status(400).json({ success: false, message: 'Invalid pagination parameters' });
+    const { limit, offset } = page;
 
     // Verify user has access to conversation
     const conversation = ConversationModel.findById(conversationId);
@@ -2406,15 +2432,16 @@ app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
 });
 
 // POST /api/conversations/:id/messages - Send a message
-app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
+app.post('/api/conversations/:id/messages', authMiddleware, chatReadLimiter, (req, res) => {
   try {
     const conversationId = parseInt(req.params.id);
     const { message, client_id } = req.body;
 
-    if (!message || typeof message !== 'string' || !message.trim()) {
+    const messageError = validateMessage(message, client_id);
+    if (messageError) {
       return res.status(400).json({
         success: false,
-        message: 'Message is required and must not be empty'
+        message: messageError
       });
     }
 
@@ -2437,6 +2464,9 @@ app.post('/api/conversations/:id/messages', authMiddleware, (req, res) => {
     // Determine the other user
     const otherUserId = req.user.id === conversation.driver_id ? conversation.customer_id : conversation.driver_id;
 
+    if (!consumeQuota('message', req.user.id, 30)) {
+      return res.status(429).json({ success: false, message: 'Too many messages. Try again shortly.' });
+    }
     // Persist once and broadcast to every connected participant.
     const payload = deliverMessage(conversationId, req.user.id, message.trim(), client_id || null);
 
@@ -2518,10 +2548,11 @@ app.patch('/api/messages/:id/read', authMiddleware, (req, res) => {
 // ============================================
 
 // GET /api/notifications - Get all notifications for current user
-app.get('/api/notifications', authMiddleware, (req, res) => {
+app.get('/api/notifications', authMiddleware, chatReadLimiter, (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
+    const page = pagination(req.query);
+    if (!page) return res.status(400).json({ success: false, message: 'Invalid pagination parameters' });
+    const { limit, offset } = page;
 
     const notifications = NotificationModel.findByUserId(req.user.id, limit, offset);
     const unreadCount = NotificationModel.getUnreadCount(req.user.id);
@@ -2746,6 +2777,8 @@ io.use((socket, next) => {
     if (!currentUser) return next(new Error('Invalid token'));
     socket.userId = currentUser.id;
     socket.userRole = currentUser.role;
+    socket.authToken = token;
+    socket.authExpiresAt = decoded.exp;
     next();
   } catch (error) {
     next(new Error('Invalid token'));
@@ -2755,6 +2788,28 @@ io.use((socket, next) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`✓ User ${socket.userId} connected`);
+  socket.join(`session-${tokenFingerprint(socket.authToken)}`);
+  // The timer also prevents expired idle sockets from receiving broadcasts.
+  const scheduleExpiry = () => {
+    const remaining = socket.authExpiresAt * 1000 - Date.now();
+    if (remaining <= 0) return socket.disconnect(true);
+    socket.expiryTimer = setTimeout(scheduleExpiry, Math.min(remaining, 2147483647));
+    socket.expiryTimer.unref();
+  };
+  scheduleExpiry();
+  socket.use((packet, next) => {
+    if (!verifyToken(socket.authToken) || !UserModel.findById(socket.userId)) {
+      socket.disconnect(true);
+      return next(new Error('Session expired'));
+    }
+    if (!consumeQuota('socket-event', socket.userId, 120)) {
+      const ack = packet[packet.length - 1];
+      if (typeof ack === 'function') ack({ success: false, error: 'Too many events. Try again shortly.' });
+      return next(new Error('Too many events'));
+    }
+    next();
+  });
+  socket.on('error', () => {});
 
   // Join user-specific room for notifications
   socket.join(`user-${socket.userId}`);
@@ -2783,9 +2838,11 @@ io.on('connection', (socket) => {
       const message = data && data.message;
       const clientId = data && data.clientId;
 
-      if (!conversationId || !message || !String(message).trim()) {
-        if (typeof ack === 'function') ack({ success: false, error: 'Missing required fields' });
-        socket.emit('error', { message: 'Missing required fields' });
+      const messageError = validateMessage(message, clientId);
+      if (!conversationId || messageError) {
+        const error = messageError || 'Missing required fields';
+        if (typeof ack === 'function') ack({ success: false, error });
+        socket.emit('error', { message: error });
         return;
       }
 
@@ -2800,7 +2857,12 @@ io.on('connection', (socket) => {
       // Determine the other user
       const otherUserId = socket.userId === conversation.driver_id ? conversation.customer_id : conversation.driver_id;
 
-      const payload = deliverMessage(conversationId, socket.userId, String(message).trim(), clientId || null);
+      if (!consumeQuota('message', socket.userId, 30)) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Too many messages. Try again shortly.' });
+        socket.emit('error', { message: 'Too many messages. Try again shortly.' });
+        return;
+      }
+      const payload = deliverMessage(conversationId, socket.userId, message.trim(), clientId || null);
 
       // Notify the other user if they're not currently in the conversation
       const senderProfile = ProfileModel.findByUserId(socket.userId);
@@ -2868,6 +2930,7 @@ io.on('connection', (socket) => {
 
   // Disconnect
   socket.on('disconnect', () => {
+    clearTimeout(socket.expiryTimer);
     console.log(`✓ User ${socket.userId} disconnected`);
   });
 });

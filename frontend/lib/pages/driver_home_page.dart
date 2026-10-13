@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../services/auth_actions.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dashboard_activity.dart';
 import '../widgets/notification_icon.dart';
@@ -19,7 +20,7 @@ class DriverHomePage extends ConsumerWidget {
           IconButton(
             tooltip: 'Déconnexion',
             icon: const Icon(Icons.logout_rounded),
-            onPressed: () => ref.read(authProvider.notifier).logout(),
+            onPressed: () => logoutAndNotify(context, ref),
           ),
         ],
       ),

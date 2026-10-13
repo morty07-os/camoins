@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -177,8 +178,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       if (value == null || value.isEmpty) {
                         return 'Le mot de passe est requis';
                       }
-                      if (value.length < 6) {
-                        return 'Le mot de passe doit contenir au moins 6 caractères';
+                      if (value.length < 12 || utf8.encode(value).length > 72) {
+                        return 'Utilisez au moins 12 caractères et au maximum 72 octets UTF-8';
                       }
                       return null;
                     },

@@ -24,7 +24,7 @@ async function api(method, route, token, body) {
 async function register(prefix, role) {
   const response = await api('POST', '/auth/register', null, {
     email: `${prefix}-${Date.now()}@test.example`,
-    password: 'password123',
+    password: 'test-password-123',
     full_name: prefix,
     phone: '0555000000',
     role,
@@ -125,6 +125,10 @@ async function run() {
   let response = await search();
   assert.equal(response.status, 200);
   assert.equal(response.data.count, 5, 'no filters returns every eligible trip');
+  for (const item of response.data.trips) {
+    assert.equal(Object.hasOwn(item.driver, 'email'), false);
+    assert.equal(Object.hasOwn(item.truck, 'registration_number'), false);
+  }
 
   response = await search({ origin_name: '', destination_name: '', date: '', truck_type: '' });
   assert.equal(response.status, 200);

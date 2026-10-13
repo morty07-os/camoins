@@ -108,6 +108,23 @@ class ApiService {
     }
   }
 
+  Future<bool> logout(String token) async {
+    try {
+      final client = _client ?? http.Client();
+      try {
+        final response = await client.post(
+          Uri.parse('$baseUrl/auth/logout'),
+          headers: {'Authorization': 'Bearer $token'},
+        ).timeout(const Duration(seconds: 10));
+        return response.statusCode == 200 || response.statusCode == 401;
+      } finally {
+        if (_client == null) client.close();
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> getCurrentUser(String token) async {
     try {
       final response = await http.get(

@@ -19,7 +19,7 @@ class DriverInfo {
   factory DriverInfo.fromJson(Map<String, dynamic> json) {
     return DriverInfo(
       id: json['id'],
-      email: json['email'],
+      email: json['email'] ?? '',
       fullName: json['full_name'] ?? '',
       rating: (json['rating'] ?? 0).toDouble(),
       ratingCount: json['rating_count'] ?? 0,

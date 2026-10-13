@@ -8,6 +8,7 @@ for (const file of readdirSync(__dirname).filter(file => file.endsWith('.test.js
   const result = spawnSync(process.execPath, [path.join(__dirname, file)], {
     stdio: 'inherit',
     timeout: 120000,
+    env: { ...process.env, NODE_ENV: 'test', JWT_SECRET: 'isolated-regression-secret-at-least-32-bytes' },
   });
   if (result.error) console.error(result.error.message);
   if (result.status !== 0) failed = true;

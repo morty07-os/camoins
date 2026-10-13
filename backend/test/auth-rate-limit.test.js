@@ -20,7 +20,7 @@ async function api(url, body) {
 function registration(email) {
   return {
     email,
-    password: 'password123',
+    password: 'test-password-123',
     full_name: 'Rate Limit Test User',
     role: 'CUSTOMER',
   };
@@ -61,7 +61,7 @@ async function run() {
     }
   }
 
-  response = await api('/auth/login', { email, password: 'password123' });
+  response = await api('/auth/login', { email, password: 'test-password-123' });
   if (response.status !== 200 || !response.data.token) {
     throw new Error(`Successful login was unnecessarily blocked: ${response.status}`);
   }

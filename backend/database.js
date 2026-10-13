@@ -11,6 +11,13 @@ db.pragma('foreign_keys = ON');
 
 // Create tables
 function initializeDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS revoked_tokens (
+      token_hash TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expiry ON revoked_tokens(expires_at);
+  `);
   // Users table
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (

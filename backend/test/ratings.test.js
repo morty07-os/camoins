@@ -47,7 +47,7 @@ async function run() {
   console.log('PASS database constraints and atomic rating rollback');
 
   server = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-    env: { ...process.env, PORT: String(port), DB_PATH: ':memory:', JWT_SECRET: 'booking-regression-test' },
+    env: { ...process.env, PORT: String(port), DB_PATH: ':memory:', JWT_SECRET: 'booking-regression-test-secret-at-least-32-bytes' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   server.stdout.on('data', data => { output += data; });
@@ -62,7 +62,7 @@ async function run() {
   assert.ok(ready, `Server did not start: ${output}`);
   async function register(role) {
     const result = await api('POST', '/auth/register', null, {
-      email: `${role.toLowerCase()}@test.example`, password: 'password123',
+      email: `${role.toLowerCase()}@test.example`, password: 'test-password-123',
       full_name: role, phone: '0555123456', role,
     });
     assert.equal(result.status, 201);
@@ -109,7 +109,7 @@ async function run() {
   assert.equal((await api('POST', '/trips/' + tripId + '/complete', driver)).status, 200);
   assert.equal((await api('POST', '/requests/' + requestId + '/confirm', customer)).status, 200);
   const stranger = await api('POST', '/auth/register', null, {
-    email: 'stranger@test.example', password: 'password123', full_name: 'Stranger', role: 'CUSTOMER'
+    email: 'stranger@test.example', password: 'test-password-123', full_name: 'Stranger', role: 'CUSTOMER'
   });
   assert.equal((await api('POST', '/ratings', stranger.data.token, body)).status, 403);
   assert.deepEqual((await api('GET', '/trips/history', stranger.data.token)).data.history, []);

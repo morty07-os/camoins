@@ -155,11 +155,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> logout() async {
-    // Drop the authenticated socket so no stale token stays connected.
+  Future<bool> logout() async {
+    final token = await _storageService.getToken();
+    if (token != null && !await _apiService.logout(token)) {
+      state = state.copyWith(error: 'Déconnexion impossible. Vérifiez votre connexion et réessayez.');
+      return false;
+    }
+    // The server has revoked the token and closed every socket using it.
     await ChatService().disconnect();
     await _storageService.deleteToken();
     state = AuthState(isAuthenticated: false, isLoading: false);
+    return true;
   }
 
   Future<bool> updateProfile({

@@ -6,6 +6,7 @@
 .env.production
 .env.*.local
 *.env
+!backend/.env.example
 
 # Node.js
 node_modules/
@@ -111,6 +112,9 @@ $RECYCLE.BIN/
 
 # Database
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite
 *.sqlite3
 

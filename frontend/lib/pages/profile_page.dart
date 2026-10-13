@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../constants/algerian_wilayas.dart';
 import '../models/user.dart';
 import '../providers/auth_provider.dart';
+import '../services/auth_actions.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/info_row.dart';
@@ -103,7 +104,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _handleLogout() async {
-    await ref.read(authProvider.notifier).logout();
+    await logoutAndNotify(context, ref);
   }
 
   @override

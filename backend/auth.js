@@ -1,17 +1,16 @@
 const jwt = require('jsonwebtoken');
+const { createHash, randomUUID } = require('node:crypto');
 const db = require('./database');
 
-const DEVELOPMENT_JWT_SECRET = 'backhaul-secret-key-change-in-production';
-const isProduction = process.env.NODE_ENV === 'production';
-
-if (isProduction && !process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET is required when NODE_ENV=production. Configure it before starting the backend.');
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || Buffer.byteLength(JWT_SECRET) < 32 || JWT_SECRET === 'backhaul-secret-key-change-in-production') {
+  throw new Error('Set JWT_SECRET to a unique random secret of at least 32 bytes before starting the backend.');
 }
-
-const JWT_SECRET = process.env.JWT_SECRET || DEVELOPMENT_JWT_SECRET;
-const JWT_EXPIRES_IN = '7d';
+const JWT_EXPIRES_IN = '12h';
+const tokenFingerprint = token => createHash('sha256').update(token).digest('hex');
 
 function generateToken(user) {
+  db.prepare('DELETE FROM revoked_tokens WHERE expires_at <= ?').run(Math.floor(Date.now() / 1000));
   return jwt.sign(
     {
       id: user.id,
@@ -19,16 +18,25 @@ function generateToken(user) {
       role: user.role
     },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256', jwtid: randomUUID() }
   );
 }
 
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    if (!Number.isSafeInteger(decoded.id) || decoded.id <= 0 || !Number.isSafeInteger(decoded.exp)) return null;
+    if (db.prepare('SELECT 1 FROM revoked_tokens WHERE token_hash = ?').get(tokenFingerprint(token))) return null;
+    return decoded;
   } catch (error) {
     return null;
   }
+}
+
+function revokeToken(token, expiresAt) {
+  db.prepare('DELETE FROM revoked_tokens WHERE expires_at <= ?').run(Math.floor(Date.now() / 1000));
+  db.prepare('INSERT OR IGNORE INTO revoked_tokens (token_hash, expires_at) VALUES (?, ?)')
+    .run(tokenFingerprint(token), expiresAt);
 }
 
 function authMiddleware(req, res, next) {
@@ -56,7 +64,9 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ success: false, message: 'Account no longer exists' });
   }
   req.user = currentUser;
+  req.authToken = token;
+  req.authExpiresAt = decoded.exp;
   next();
 }
 
-module.exports = { generateToken, verifyToken, authMiddleware };
+module.exports = { generateToken, verifyToken, authMiddleware, revokeToken, tokenFingerprint };

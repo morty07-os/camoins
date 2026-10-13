@@ -1,24 +1,38 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import '../models/notification.dart';
 
 class StorageService {
+  static const _secureStorage = FlutterSecureStorage();
+  // Browser tokens live only in this tab's memory, never localStorage.
+  static String? _webToken;
   static const String _tokenKey = 'auth_token';
   static const String _pendingNotificationKey = 'pending_notification';
 
   Future<void> saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
+    await prefs.remove(_tokenKey);
+    if (kIsWeb) {
+      _webToken = token;
+    } else {
+      await _secureStorage.write(key: _tokenKey, value: token);
+    }
   }
 
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
+    await prefs.remove(_tokenKey);
+    if (kIsWeb) return _webToken;
+    return _secureStorage.read(key: _tokenKey);
   }
 
   Future<void> deleteToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
+    _webToken = null;
+    if (!kIsWeb) await _secureStorage.delete(key: _tokenKey);
   }
 
   Future<void> saveString(String key, String value) async {

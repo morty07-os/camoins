@@ -44,7 +44,7 @@ async function api(method, url, token, body) {
 async function register(email, role) {
   const res = await api('POST', '/auth/register', null, {
     email,
-    password: 'password123',
+    password: 'test-password-123',
     full_name: email.split('@')[0],
     phone: '0555123456',
     role,

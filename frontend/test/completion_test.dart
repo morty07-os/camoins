@@ -63,7 +63,8 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test('History authenticates, parses SQLite numeric values and preserves HTTP/parsing errors', () async {
-    SharedPreferences.setMockInitialValues({'auth_token': 'test-token'});
+    await StorageService().saveToken('test-token');
+    addTearDown(() => StorageService().deleteToken());
     final api = ApiService(client: MockClient((request) async {
       expect(request.url.path.endsWith('/trips/history'), isTrue);
       expect(request.headers['Authorization'], 'Bearer test-token');

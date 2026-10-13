@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../providers/auth_provider.dart';
+import '../services/auth_actions.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
@@ -187,8 +186,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }
 
   Future<void> _logout() async {
-    await ref.read(authProvider.notifier).logout();
-    if (mounted) context.go('/login');
+    await logoutAndNotify(context, ref);
   }
 
   @override

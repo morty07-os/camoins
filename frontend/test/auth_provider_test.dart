@@ -62,6 +62,34 @@ void main() {
     verify(() => storage.deleteToken()).called(1);
   });
 
+  test('logout revokes the token before clearing local authentication', () async {
+    when(() => api.getCurrentUser('saved-token')).thenAnswer((_) async =>
+        {'success': true, 'user': user});
+    when(() => api.logout('saved-token')).thenAnswer((_) async => true);
+    final notifier = AuthNotifier(api, storage);
+    addTearDown(notifier.dispose);
+    await Future<void>.delayed(Duration.zero);
+    expect(await notifier.logout(), isTrue);
+    expect(notifier.state.isAuthenticated, isFalse);
+    verifyInOrder([
+      () => api.logout('saved-token'),
+      () => storage.deleteToken(),
+    ]);
+  });
+
+  test('failed server logout preserves the session for a retry', () async {
+    when(() => api.getCurrentUser('saved-token')).thenAnswer((_) async =>
+        {'success': true, 'user': user});
+    when(() => api.logout('saved-token')).thenAnswer((_) async => false);
+    final notifier = AuthNotifier(api, storage);
+    addTearDown(notifier.dispose);
+    await Future<void>.delayed(Duration.zero);
+    expect(await notifier.logout(), isFalse);
+    expect(notifier.state.isAuthenticated, isTrue);
+    expect(notifier.state.error, isNotNull);
+    verifyNever(() => storage.deleteToken());
+  });
+
   testWidgets('login offers retry after a temporary session failure', (tester) async {
     when(() => api.getCurrentUser('saved-token')).thenAnswer((_) async =>
         {'success': false});

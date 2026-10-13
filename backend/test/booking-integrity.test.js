@@ -54,7 +54,7 @@ async function run() {
   console.log('PASS transaction guards, capacity integrity, and rollback');
 
   server = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-    env: { ...process.env, PORT: String(port), DB_PATH: ':memory:', JWT_SECRET: 'booking-regression-test' },
+    env: { ...process.env, PORT: String(port), DB_PATH: ':memory:', JWT_SECRET: 'booking-regression-test-secret-at-least-32-bytes' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   server.stdout.on('data', data => { output += data; });
@@ -69,7 +69,7 @@ async function run() {
   assert.ok(ready, `Server did not start: ${output}`);
   async function register(role) {
     const result = await api('POST', '/auth/register', null, {
-      email: `${role.toLowerCase()}@test.example`, password: 'password123',
+      email: `${role.toLowerCase()}@test.example`, password: 'test-password-123',
       full_name: role, phone: '0555123456', role,
     });
     assert.equal(result.status, 201);

@@ -19,6 +19,9 @@ class AppConfig {
     if (_defineBaseUrl.isNotEmpty) {
       return _normalize(_defineBaseUrl);
     }
+    if (kReleaseMode) {
+      throw StateError('Release builds require an HTTPS API_BASE_URL');
+    }
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       // Android emulators reach the host machine through 10.0.2.2.
       return 'http://10.0.2.2:5000';
@@ -34,6 +37,11 @@ class AppConfig {
 
   /// Resolves the runtime override once, during app start-up.
   static Future<void> load() async {
+    if (kReleaseMode) {
+      _overrideBaseUrl = null;
+      defaultBaseUrl; // Validate the build-time production endpoint at startup.
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(_prefsBaseUrlKey);
     if (stored != null && stored.trim().isNotEmpty) {
@@ -43,6 +51,7 @@ class AppConfig {
 
   /// Overrides the base URL at runtime (persisted across launches).
   static Future<void> setBaseUrl(String value) async {
+    if (kReleaseMode) throw StateError('The release backend URL cannot be overridden');
     final normalized = _normalize(value);
     _overrideBaseUrl = normalized;
     final prefs = await SharedPreferences.getInstance();
@@ -60,6 +69,12 @@ class AppConfig {
     var normalized = value.trim();
     while (normalized.endsWith('/')) {
       normalized = normalized.substring(0, normalized.length - 1);
+    }
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || uri.host.isEmpty || uri.userInfo.isNotEmpty ||
+        uri.hasQuery || uri.hasFragment ||
+        (uri.scheme != 'https' && (kReleaseMode || uri.scheme != 'http'))) {
+      throw ArgumentError('A valid ${kReleaseMode ? 'HTTPS' : 'HTTP(S)'} backend URL is required');
     }
     return normalized;
   }
